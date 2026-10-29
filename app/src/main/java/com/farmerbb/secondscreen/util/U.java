@@ -556,6 +556,9 @@ public final class U {
                 } catch (IOException e) {
                     showToast(context, R.string.error_loading_list);
                 }
+
+                if(listOfTitlesByDate[i] == null)
+                    listOfTitlesByDate[i] = listOfProfilesByDate[i] != null ? listOfProfilesByDate[i] : "";
             }
 
             // Add fake entry, if applicable
@@ -576,7 +579,9 @@ public final class U {
             // Copy filenames array with new sort order of titles and nullify date arrays
             for(int i = 0; i < fakeNumOfProfiles; i++) {
                 for(int j = 0; j < fakeNumOfProfiles; j++) {
-                    if(listOfTitlesByName[i].equals(listOfTitlesByDate[j]) && listOfProfilesByName[i].equals("new")) {
+                    if(listOfTitlesByName[i] != null
+                            && listOfTitlesByName[i].equals(listOfTitlesByDate[j])
+                            && "new".equals(listOfProfilesByName[i])) {
                         listOfProfilesByName[i] = listOfProfilesByDate[j];
                         listOfProfilesByDate[j] = "";
                         listOfTitlesByDate[j] = "";
