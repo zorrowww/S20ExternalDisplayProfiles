@@ -77,7 +77,7 @@
     </string-array>
     <string-array name="pref_rotation_list">
         <item>Use system setting</item>
-        <item>Force auto-rotate (dock mode)</item>
+        <item>Auto-rotate (sensor based)</item>
         <item>Lock orientation to landscape</item>
         <item>Lock orientation to portrait</item>
     </string-array>

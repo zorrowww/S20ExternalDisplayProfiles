@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
@@ -34,10 +34,27 @@ jobs:
       - name: Build free debug APK
         run: ./gradlew --no-daemon :app:assembleFreeDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v7
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: SecondScreen-free-debug
           path: app/build/outputs/apk/free/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Release APK
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v2.9.4-samsung-latest
+          name: SecondScreen 2.9.4 for Samsung S20 (Auto-Rotation & Cutout)
+          body: |
+            Automated build with:
+            - Gravity sensor auto-rotate for portrait and landscape video playback
+            - Samsung One UI home launcher orientation sync
+            - Camera cutout overlap policy automation (removes punch hole black bars)
+          draft: false
+          prerelease: false
+          files: app/build/outputs/apk/free/debug/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

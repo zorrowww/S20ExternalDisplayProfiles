@@ -161,7 +161,8 @@ public final class ProfileLoadService extends SecondScreenIntentService {
         final int setHomeActivityCommand = 24;
         final int sehomeCommand = 25;
         final int userRotationModeCommand = 26;
-        final int total = 27;
+        final int cutoutPolicyCommand = 27;
+        final int total = 28;
 
         // Initialize su array
         String[] su = new String[total];
@@ -489,7 +490,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
                 }
                 break;
             case "auto-rotate":
-                dockMode = Intent.EXTRA_DOCK_STATE_DESK;
+                dockMode = Intent.EXTRA_DOCK_STATE_UNDOCKED;
                 Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 1);
 
                 su[userRotationModeCommand] = U.wmUserRotationCommand(
@@ -525,7 +526,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
         }
 
         // Allow home screen rotation on Samsung One UI so Quickstep recents overview stays in landscape
-        if(isLandscape || !"reset".equals(prefSaved.getString("size", "reset"))) {
+        if(isLandscape || "auto-rotate".equals(rotationLock) || !"reset".equals(prefSaved.getString("size", "reset"))) {
             try {
                 Settings.Global.putInt(getContentResolver(), "sehome_portrait_mode_only", 0);
             } catch (Exception ignored) {}
@@ -538,6 +539,9 @@ public final class ProfileLoadService extends SecondScreenIntentService {
 
             su[sehomeCommand] = U.sehomeCommand(1);
         }
+
+        // Set camera cutout policy to Overlap (1) for apps to remove black bars
+        su[cutoutPolicyCommand] = "for pkg in $(pm list packages -3 | cut -d: -f2); do service call activity_task 121 i32 0 s16 \"$pkg\" i32 1 >/dev/null 2>&1; done";
 
         // Run checks to determine if rotation command needs to be run.
         // Don't run this command if we don't need to.
@@ -1013,6 +1017,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
                                 su[setHomeActivityCommand],
                                 su[sehomeCommand],
                                 su[userRotationModeCommand],
+                                su[cutoutPolicyCommand],
                                 su[uiRefreshCommand]};
                     } else
                         su = new String[]{
@@ -1032,6 +1037,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
                                 su[setHomeActivityCommand],
                                 su[sehomeCommand],
                                 su[userRotationModeCommand],
+                                su[cutoutPolicyCommand],
                                 su[uiRefreshCommand]};
                     break;
             }

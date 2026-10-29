@@ -149,6 +149,9 @@ public abstract class RotationLockService extends Service implements ServiceInte
             Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0);
         } else if(screenOrientation == ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR) {
             Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 1);
+            try {
+                Settings.Global.putInt(getContentResolver(), "sehome_portrait_mode_only", 0);
+            } catch (Exception ignored) {}
         }
     }
 
