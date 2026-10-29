@@ -151,7 +151,7 @@ public final class DisplayConnectionService extends Service implements ServiceIn
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if(intent.getBooleanExtra("start_foreground", false))
+        if(intent != null && intent.getBooleanExtra("start_foreground", false))
             startForeground();
 
         return START_STICKY;

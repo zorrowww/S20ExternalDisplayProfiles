@@ -79,6 +79,8 @@ public final class ProfileLoadService extends SecondScreenIntentService {
 
         if(intent.getStringExtra(U.NAME) != null)
             filename = intent.getStringExtra(U.NAME);
+        else if(intent.getStringExtra("filename") != null)
+            filename = intent.getStringExtra("filename");
 
         SharedPreferences prefCurrent = U.getPrefCurrent(this);
 
@@ -109,6 +111,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
     private void loadProfile(SharedPreferences prefCurrent) {
         // Load preferences
         SharedPreferences prefMain = U.getPrefMain(this);
+        if(filename == null) return;
         SharedPreferences prefSaved = U.getPrefSaved(this, filename);
         SharedPreferences.Editor editor = prefCurrent.edit();
 
@@ -117,7 +120,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
 
         // Handle toggling of certain values
         String toggle = prefCurrent.getString("toggle", "null");
-        if(!"null".equals(toggle) && filename.equals("quick_actions")) {
+        if(!"null".equals(toggle) && "quick_actions".equals(filename)) {
             SharedPreferences.Editor editorSaved = prefSaved.edit();
 
             if("immersive_new".equals(toggle)) {
@@ -1117,7 +1120,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
         editor.commit();
 
         // Clear quick_actions.xml if profile being loaded is not a Quick Action
-        if(!filename.equals("quick_actions")) {
+        if(!"quick_actions".equals(filename)) {
             SharedPreferences prefSaved2 = U.getPrefQuickActions(this);
             SharedPreferences.Editor prefSavedEditor = prefSaved2.edit();
             prefSavedEditor.clear();
