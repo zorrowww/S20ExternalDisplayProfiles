@@ -118,7 +118,9 @@ public final class TurnOffService extends SecondScreenIntentService {
         final int vibrationCommand = 20;
         final int backlightCommand = 21;
         final int setHomeActivityCommand = 22;
-        final int total = 23;
+        final int sehomeCommand = 23;
+        final int userRotationModeCommand = 24;
+        final int total = 25;
 
         // Initialize su array
         String[] su = new String[total];
@@ -247,6 +249,20 @@ public final class TurnOffService extends SecondScreenIntentService {
         // Screen rotation
         Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, prefCurrent.getInt("user_rotation", Surface.ROTATION_0));
         Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, prefCurrent.getInt("rotation_setting", 1));
+
+        su[userRotationModeCommand] = U.wmUserRotationCommand(
+                prefCurrent.getInt("user_rotation", Surface.ROTATION_0),
+                prefCurrent.getInt("rotation_setting", 1));
+
+        // Restore Samsung One UI home rotation setting
+        int originalSehome = prefCurrent.getInt("sehome_portrait_mode_only", -1);
+        if(originalSehome != -1) {
+            try {
+                Settings.Global.putInt(getContentResolver(), "sehome_portrait_mode_only", originalSehome);
+            } catch (Exception ignored) {}
+
+            su[sehomeCommand] = U.sehomeRestoreCommand(originalSehome);
+        }
 
         // Run checks to determine if rotation command needs to be run.
         // Don't run this command if we don't need to.
@@ -384,6 +400,8 @@ public final class TurnOffService extends SecondScreenIntentService {
                             su[showTouchesCommand],
                             su[densityCommand],
                             su[setHomeActivityCommand],
+                            su[sehomeCommand],
+                            su[userRotationModeCommand],
                             su[uiRefreshCommand]};
                 } else
                     su = new String[]{
@@ -401,6 +419,8 @@ public final class TurnOffService extends SecondScreenIntentService {
                             su[stayOnCommand],
                             su[showTouchesCommand],
                             su[setHomeActivityCommand],
+                            su[sehomeCommand],
+                            su[userRotationModeCommand],
                             su[uiRefreshCommand]};
                 break;
         }

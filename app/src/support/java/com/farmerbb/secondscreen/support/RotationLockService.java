@@ -102,6 +102,8 @@ public abstract class RotationLockService extends Service implements ServiceInte
     private void drawSystemOverlay() {
         int screenOrientation = getScreenOrientation();
 
+        applySystemRotation(screenOrientation);
+
         // Draw system overlay, if needed
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && Settings.canDrawOverlays(this)
@@ -121,6 +123,28 @@ public abstract class RotationLockService extends Service implements ServiceInte
 
             view = new View(this);
             windowManager.addView(view, params);
+        }
+    }
+
+    private void applySystemRotation(int screenOrientation) {
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.M || !Settings.System.canWrite(this))
+            return;
+
+        boolean naturalLandscape = U.getPrefMain(this).getBoolean("landscape", false);
+        if(screenOrientation == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) {
+            Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION,
+                    naturalLandscape ? Surface.ROTATION_0 : Surface.ROTATION_90);
+            Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0);
+
+            try {
+                Settings.Global.putInt(getContentResolver(), "sehome_portrait_mode_only", 0);
+            } catch (Exception ignored) {}
+        } else if(screenOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT) {
+            Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION,
+                    naturalLandscape ? Surface.ROTATION_90 : Surface.ROTATION_0);
+            Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0);
+        } else if(screenOrientation == ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR) {
+            Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 1);
         }
     }
 

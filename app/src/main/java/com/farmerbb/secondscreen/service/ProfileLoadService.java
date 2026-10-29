@@ -159,7 +159,9 @@ public final class ProfileLoadService extends SecondScreenIntentService {
         final int vibrationCommand = 22;
         final int backlightCommand = 23;
         final int setHomeActivityCommand = 24;
-        final int total = 25;
+        final int sehomeCommand = 25;
+        final int userRotationModeCommand = 26;
+        final int total = 27;
 
         // Initialize su array
         String[] su = new String[total];
@@ -433,6 +435,9 @@ public final class ProfileLoadService extends SecondScreenIntentService {
             if(prefCurrent.getBoolean("not_active", true)) {
                 editor.putInt("user_rotation", Settings.System.getInt(getContentResolver(), Settings.System.USER_ROTATION));
                 editor.putInt("rotation_setting", Settings.System.getInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION));
+
+                int sehome = Settings.Global.getInt(getContentResolver(), "sehome_portrait_mode_only", -1);
+                editor.putInt("sehome_portrait_mode_only", sehome);
             }
         } catch (SettingNotFoundException e) { /* Gracefully fail */ }
 
@@ -459,52 +464,79 @@ public final class ProfileLoadService extends SecondScreenIntentService {
         } else
             dockMode = prefCurrent.getInt("dock_mode_current", Intent.EXTRA_DOCK_STATE_UNDOCKED);
 
-        switch(prefSaved.getString("rotation_lock_new", "fallback")) {
+        String rotationLock = prefSaved.getString("rotation_lock_new", "fallback");
+        boolean isLandscape = "landscape".equals(rotationLock)
+                || ("fallback".equals(rotationLock) && prefSaved.getBoolean("rotation_lock", false));
+
+        switch(rotationLock) {
             case "fallback":
                 if(prefSaved.getBoolean("rotation_lock", false)) {
                     dockMode = Intent.EXTRA_DOCK_STATE_UNDOCKED;
 
-                    if(prefMain.getBoolean("landscape", false))
-                        Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, Surface.ROTATION_0);
-                    else
-                        Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, Surface.ROTATION_90);
-
+                    int userRotation = prefMain.getBoolean("landscape", false) ? Surface.ROTATION_0 : Surface.ROTATION_90;
+                    Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, userRotation);
                     Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0);
+
+                    su[userRotationModeCommand] = U.wmUserRotationCommand(userRotation, 0);
                 } else {
                     dockMode = prefCurrent.getInt("dock_mode", Intent.EXTRA_DOCK_STATE_UNDOCKED);
                     Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, prefCurrent.getInt("user_rotation", Surface.ROTATION_0));
                     Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, prefCurrent.getInt("rotation_setting", 1));
+
+                    su[userRotationModeCommand] = U.wmUserRotationCommand(
+                            prefCurrent.getInt("user_rotation", Surface.ROTATION_0),
+                            prefCurrent.getInt("rotation_setting", 1));
                 }
                 break;
             case "auto-rotate":
                 dockMode = Intent.EXTRA_DOCK_STATE_DESK;
                 Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 1);
+
+                su[userRotationModeCommand] = U.wmUserRotationCommand(
+                        prefCurrent.getInt("user_rotation", Surface.ROTATION_0), 1);
                 break;
             case "landscape":
                 dockMode = Intent.EXTRA_DOCK_STATE_UNDOCKED;
 
-                if(prefMain.getBoolean("landscape", false))
-                    Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, Surface.ROTATION_0);
-                else
-                    Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, Surface.ROTATION_90);
-
+                int landscapeRotation = prefMain.getBoolean("landscape", false) ? Surface.ROTATION_0 : Surface.ROTATION_90;
+                Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, landscapeRotation);
                 Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0);
+
+                su[userRotationModeCommand] = U.wmUserRotationCommand(landscapeRotation, 0);
                 break;
             case "portrait":
                 dockMode = Intent.EXTRA_DOCK_STATE_UNDOCKED;
 
-                if(prefMain.getBoolean("landscape", false))
-                    Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, Surface.ROTATION_90);
-                else
-                    Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, Surface.ROTATION_0);
-
+                int portraitRotation = prefMain.getBoolean("landscape", false) ? Surface.ROTATION_90 : Surface.ROTATION_0;
+                Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, portraitRotation);
                 Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, 0);
+
+                su[userRotationModeCommand] = U.wmUserRotationCommand(portraitRotation, 0);
                 break;
             case "do-nothing":
                 dockMode = prefCurrent.getInt("dock_mode", Intent.EXTRA_DOCK_STATE_UNDOCKED);
                 Settings.System.putInt(getContentResolver(), Settings.System.USER_ROTATION, prefCurrent.getInt("user_rotation", Surface.ROTATION_0));
                 Settings.System.putInt(getContentResolver(), Settings.System.ACCELEROMETER_ROTATION, prefCurrent.getInt("rotation_setting", 1));
+
+                su[userRotationModeCommand] = U.wmUserRotationCommand(
+                        prefCurrent.getInt("user_rotation", Surface.ROTATION_0),
+                        prefCurrent.getInt("rotation_setting", 1));
                 break;
+        }
+
+        // Allow home screen rotation on Samsung One UI so Quickstep recents overview stays in landscape
+        if(isLandscape || !"reset".equals(prefSaved.getString("size", "reset"))) {
+            try {
+                Settings.Global.putInt(getContentResolver(), "sehome_portrait_mode_only", 0);
+            } catch (Exception ignored) {}
+
+            su[sehomeCommand] = U.sehomeCommand(0);
+        } else if("portrait".equals(rotationLock)) {
+            try {
+                Settings.Global.putInt(getContentResolver(), "sehome_portrait_mode_only", 1);
+            } catch (Exception ignored) {}
+
+            su[sehomeCommand] = U.sehomeCommand(1);
         }
 
         // Run checks to determine if rotation command needs to be run.
@@ -979,6 +1011,8 @@ public final class ProfileLoadService extends SecondScreenIntentService {
                                 su[showTouchesCommand],
                                 su[densityCommand],
                                 su[setHomeActivityCommand],
+                                su[sehomeCommand],
+                                su[userRotationModeCommand],
                                 su[uiRefreshCommand]};
                     } else
                         su = new String[]{
@@ -996,6 +1030,8 @@ public final class ProfileLoadService extends SecondScreenIntentService {
                                 su[stayOnCommand],
                                 su[showTouchesCommand],
                                 su[setHomeActivityCommand],
+                                su[sehomeCommand],
+                                su[userRotationModeCommand],
                                 su[uiRefreshCommand]};
                     break;
             }

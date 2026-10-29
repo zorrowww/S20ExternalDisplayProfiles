@@ -191,6 +191,28 @@ public final class U {
     public static final String timeoutCommand = "settings put secure lock_screen_lock_after_timeout ";
     public static final String hdmiRotationCommand = "setprop persist.demo.hdmirotation ";
     public static final String setHomeActivityCommand = "cmd package set-home-activity ";
+    public static final String sehomeCommand = "settings put global sehome_portrait_mode_only ";
+
+    public static String sehomeCommand(int value) {
+        return sehomeCommand + value;
+    }
+
+    public static String sehomeRestoreCommand(int value) {
+        if(value == -1)
+            return "settings delete global sehome_portrait_mode_only";
+
+        return sehomeCommand + value;
+    }
+
+    public static String wmUserRotationCommand(int userRotation, int accelerometerRotation) {
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.Q)
+            return "";
+
+        if(accelerometerRotation != 0)
+            return "wm user-rotation free";
+
+        return "wm user-rotation lock " + userRotation;
+    }
 
     public static String wifiCommand(boolean enabled) {
         return "svc wifi " + (enabled ? "enable" : "disable");
