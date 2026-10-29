@@ -20,6 +20,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ActivityInfo;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.IBinder;
@@ -28,8 +29,11 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
 
 import android.view.Gravity;
+import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
+
+import com.farmerbb.secondscreen.util.U;
 
 public abstract class RotationLockService extends Service implements ServiceInterface {
 
