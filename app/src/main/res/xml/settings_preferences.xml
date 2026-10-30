@@ -31,6 +31,13 @@
         android:dependency="hdmi"
         android:title="@string/pref_title_hdmi_select_profile" >
     </Preference>
+
+    <CheckBoxPreference
+        android:defaultValue="true"
+        android:key="force_phone_speaker"
+        android:summary="@string/pref_summary_force_phone_speaker"
+        android:title="@string/pref_title_force_phone_speaker" />
+
     <Preference
         android:key="notification_settings"
         android:title="@string/notification_settings" >

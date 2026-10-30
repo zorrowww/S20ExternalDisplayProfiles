@@ -236,4 +236,7 @@
     <string name="auto_skip_service_description">自动检测并点击应用开屏广告的跳过按钮</string>
     <string name="pref_title_auto_skip_ads">自动跳过开屏广告</string>
     <string name="pref_summary_auto_skip_ads">应用启动时自动秒跳过开屏广告</string>
+
+    <string name="pref_title_force_phone_speaker">外接屏幕时使用手机扬声器发声</string>
+    <string name="pref_summary_force_phone_speaker">将音频自动切换到手机自带扬声器，而不是从 HDMI 显示器发出</string>
 </resources>

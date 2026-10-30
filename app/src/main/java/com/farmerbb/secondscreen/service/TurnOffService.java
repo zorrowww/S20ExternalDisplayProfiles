@@ -31,6 +31,7 @@ import android.widget.Toast;
 import com.farmerbb.secondscreen.R;
 import com.farmerbb.secondscreen.activity.UnableToStartActivity;
 import com.farmerbb.secondscreen.activity.TaskerConditionActivity;
+import com.farmerbb.secondscreen.util.AudioRoutingHelper;
 import com.farmerbb.secondscreen.util.CommandDispatcher;
 import com.farmerbb.secondscreen.util.ShowToast;
 import com.farmerbb.secondscreen.util.U;
@@ -477,6 +478,9 @@ public final class TurnOffService extends SecondScreenIntentService {
 
         if(shouldDisableTaskbarHome && !(U.isInNonRootMode(this) && rebootRequired))
             U.goHome(this);
+
+        // Reset audio routing
+        AudioRoutingHelper.setForceSpeaker(this, false);
 
         // Stop NotificationService
         Intent serviceIntent = new Intent(this, NotificationService.class);

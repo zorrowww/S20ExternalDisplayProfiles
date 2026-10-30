@@ -236,4 +236,7 @@
     <string name="auto_skip_service_description">Automatically detects and clicks the Skip button on app splash screens</string>
     <string name="pref_title_auto_skip_ads">Auto-skip splash ads</string>
     <string name="pref_summary_auto_skip_ads">Automatically skip splash advertisements when opening apps</string>
+
+    <string name="pref_title_force_phone_speaker">Force phone speaker audio</string>
+    <string name="pref_summary_force_phone_speaker">Route audio to phone\'s built-in speaker instead of HDMI external display</string>
 </resources>

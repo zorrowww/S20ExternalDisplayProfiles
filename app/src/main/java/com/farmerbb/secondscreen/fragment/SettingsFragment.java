@@ -35,6 +35,7 @@ import com.farmerbb.secondscreen.activity.NotificationSettingsActivity;
 import com.farmerbb.secondscreen.service.DisplayConnectionService;
 import com.farmerbb.secondscreen.service.AutoSkipService;
 import com.farmerbb.secondscreen.service.SafeModeToggleService;
+import com.farmerbb.secondscreen.util.AudioRoutingHelper;
 import com.farmerbb.secondscreen.util.U;
 
 import java.io.File;
@@ -112,6 +113,7 @@ public final class SettingsFragment extends PreferenceFragment implements OnPref
 
         editor.putBoolean("safe_mode", prefMain.getBoolean("safe_mode", false));
         editor.putBoolean("hdmi", prefMain.getBoolean("hdmi", true));
+        editor.putBoolean("force_phone_speaker", prefMain.getBoolean("force_phone_speaker", true));
         editor.putBoolean("expert_mode", prefMain.getBoolean("expert_mode", false));
         editor.putBoolean("force_backlight_off", prefMain.getBoolean("force_backlight_off", false));
         editor.putBoolean("tasker_enabled", prefMain.getBoolean("tasker_enabled", true));
@@ -127,6 +129,18 @@ public final class SettingsFragment extends PreferenceFragment implements OnPref
             findPreference("expert_mode").setOnPreferenceClickListener(this);
             findPreference("hdmi_select_profile").setOnPreferenceClickListener(this);
             findPreference("notification_settings").setOnPreferenceClickListener(this);
+
+            Preference forceSpeakerPref = findPreference("force_phone_speaker");
+            if(forceSpeakerPref != null) {
+                forceSpeakerPref.setOnPreferenceChangeListener((preference, newValue) -> {
+                    boolean enabled = (Boolean) newValue;
+                    SharedPreferences prefCurrent = U.getPrefCurrent(getActivity());
+                    if(!prefCurrent.getBoolean("not_active", true)) {
+                        AudioRoutingHelper.setForceSpeaker(getActivity(), enabled);
+                    }
+                    return true;
+                });
+            }
 
             addPrefs = false;
         }
@@ -215,6 +229,12 @@ public final class SettingsFragment extends PreferenceFragment implements OnPref
         } else {
             AutoSkipService.disable(getActivity());
         }
+        boolean forcePhoneSpeaker = prefNew.getBoolean("force_phone_speaker", true);
+        editor.putBoolean("force_phone_speaker", forcePhoneSpeaker);
+        SharedPreferences prefCurrent = U.getPrefCurrent(getActivity());
+        if(!prefCurrent.getBoolean("not_active", true)) {
+            AudioRoutingHelper.setForceSpeaker(getActivity(), forcePhoneSpeaker);
+        }
         editor.apply();
 
         // Cleanup
@@ -225,6 +245,7 @@ public final class SettingsFragment extends PreferenceFragment implements OnPref
         prefNewEditor.remove("force_backlight_off");
         prefNewEditor.remove("tasker_enabled");
         prefNewEditor.remove("auto_skip_ads");
+        prefNewEditor.remove("force_phone_speaker");
         prefNewEditor.apply();
     }
 

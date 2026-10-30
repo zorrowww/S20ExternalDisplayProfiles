@@ -16,6 +16,7 @@
 package com.farmerbb.secondscreen.service;
 
 import com.farmerbb.secondscreen.service.AutoSkipService;
+import com.farmerbb.secondscreen.util.AudioRoutingHelper;
 
 import android.annotation.TargetApi;
 import android.app.ActivityManager;
@@ -168,6 +169,8 @@ public final class NotificationService extends RotationLockService {
             intent.setAction(U.SCREEN_CONNECT);
             LocalBroadcastManager.getInstance(NotificationService.this).sendBroadcast(intent);
 
+            AudioRoutingHelper.applyAudioRoutingDelayed(NotificationService.this, 800);
+
             DisplayManager dm = (DisplayManager) getSystemService(DISPLAY_SERVICE);
             Display[] displays = dm.getDisplays();
 
@@ -278,11 +281,15 @@ public final class NotificationService extends RotationLockService {
         }
 
         AutoSkipService.checkAndEnable(this);
+        AudioRoutingHelper.applyAudioRouting(this);
+        AudioRoutingHelper.applyAudioRoutingDelayed(this, 800);
         super.onCreate();
     }
 
     @Override
     public void onDestroy() {
+        AudioRoutingHelper.setForceSpeaker(this, false);
+
         unregisterReceiver(screenOnReceiver);
         unregisterReceiver(userPresentReceiver);
 
