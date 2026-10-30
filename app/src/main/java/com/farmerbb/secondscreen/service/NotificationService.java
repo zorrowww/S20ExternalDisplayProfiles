@@ -59,28 +59,58 @@ public final class NotificationService extends RotationLockService {
     private int currentHdmiRotation = -1;
     private RotationWatcher rotationWatcher;
 
+    private int getProfileMinDim() {
+        SharedPreferences prefCurrent = U.getPrefCurrent(this);
+        String sizeStr = prefCurrent.getString("size", "reset");
+        if(sizeStr != null && sizeStr.contains("x")) {
+            try {
+                String[] parts = sizeStr.split("x");
+                int w = Integer.parseInt(parts[0].trim());
+                int h = Integer.parseInt(parts[1].trim());
+                if(w > 0 && h > 0) return Math.min(w, h);
+            } catch (Exception ignored) {}
+        }
+        return 768;
+    }
+
+    private int getProfileMaxDim() {
+        SharedPreferences prefCurrent = U.getPrefCurrent(this);
+        String sizeStr = prefCurrent.getString("size", "reset");
+        if(sizeStr != null && sizeStr.contains("x")) {
+            try {
+                String[] parts = sizeStr.split("x");
+                int w = Integer.parseInt(parts[0].trim());
+                int h = Integer.parseInt(parts[1].trim());
+                if(w > 0 && h > 0) return Math.max(w, h);
+            } catch (Exception ignored) {}
+        }
+        return 1366;
+    }
+
     private synchronized void handlePhoneDisplayRotation(int phoneRotation) {
         int targetHdmiRotation;
         int phoneW;
         int phoneH;
+        int minDim = getProfileMinDim();
+        int maxDim = getProfileMaxDim();
 
         switch(phoneRotation) {
             case Surface.ROTATION_90:  // 手机顺时针 90° 横屏
             case Surface.ROTATION_270: // 手机逆时针 90° (270°) 反向横屏
                 targetHdmiRotation = Surface.ROTATION_0;
-                phoneW = 1366;
-                phoneH = 768;
+                phoneW = maxDim;
+                phoneH = minDim;
                 break;
             case Surface.ROTATION_180: // 手机上下颠倒竖屏
                 targetHdmiRotation = Surface.ROTATION_270;
-                phoneW = 768;
-                phoneH = 1366;
+                phoneW = minDim;
+                phoneH = maxDim;
                 break;
             case Surface.ROTATION_0:   // 手机正向竖屏
             default:
                 targetHdmiRotation = Surface.ROTATION_90;
-                phoneW = 768;
-                phoneH = 1366;
+                phoneW = minDim;
+                phoneH = maxDim;
                 break;
         }
 
@@ -147,8 +177,10 @@ public final class NotificationService extends RotationLockService {
             } catch (ArrayIndexOutOfBoundsException e) { /* Gracefully fail */ }
 
             if(currentHdmiRotation != -1) {
-                int phoneW = (currentHdmiRotation == Surface.ROTATION_0) ? 1366 : 768;
-                int phoneH = (currentHdmiRotation == Surface.ROTATION_0) ? 768 : 1366;
+                int minDim = getProfileMinDim();
+                int maxDim = getProfileMaxDim();
+                int phoneW = (currentHdmiRotation == Surface.ROTATION_0) ? maxDim : minDim;
+                int phoneH = (currentHdmiRotation == Surface.ROTATION_0) ? minDim : maxDim;
                 HdmiRotator.rotate(NotificationService.this, currentHdmiRotation, phoneW, phoneH);
             }
         }
@@ -232,10 +264,14 @@ public final class NotificationService extends RotationLockService {
             });
             rotationWatcher.register();
         } else if("portrait".equals(rotationLock)) {
-            HdmiRotator.rotate(this, Surface.ROTATION_90, 768, 1366);
+            int minDim = getProfileMinDim();
+            int maxDim = getProfileMaxDim();
+            HdmiRotator.rotate(this, Surface.ROTATION_90, minDim, maxDim);
             currentHdmiRotation = Surface.ROTATION_90;
         } else if("landscape".equals(rotationLock)) {
-            HdmiRotator.rotate(this, Surface.ROTATION_0, 1366, 768);
+            int minDim = getProfileMinDim();
+            int maxDim = getProfileMaxDim();
+            HdmiRotator.rotate(this, Surface.ROTATION_0, maxDim, minDim);
             currentHdmiRotation = Surface.ROTATION_0;
         }
 
@@ -255,7 +291,9 @@ public final class NotificationService extends RotationLockService {
             rotationWatcher.unregister();
             rotationWatcher = null;
         }
-        HdmiRotator.rotate(this, Surface.ROTATION_0, 1366, 768);
+        int minDim = getProfileMinDim();
+        int maxDim = getProfileMaxDim();
+        HdmiRotator.rotate(this, Surface.ROTATION_0, maxDim, minDim);
 
         super.onDestroy();
     }

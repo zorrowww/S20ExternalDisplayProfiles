@@ -143,9 +143,9 @@ public class HdmiRotator {
                 externalCount++;
                 System.out.println("Configuring external display ID " + id);
 
-                // Physical external display dimensions (1366x768 base landscape)
-                int maxDim = 1366;
-                int minDim = 768;
+                // Physical external display dimensions dynamically derived from content or profile
+                int maxDim = (customW > 0 && customH > 0) ? Math.max(customW, customH) : 1366;
+                int minDim = (customW > 0 && customH > 0) ? Math.min(customW, customH) : 768;
 
                 // Source content dimensions (from phone Display 0 / layerStack 0)
                 int srcW = customW > 0 ? customW : (rotation == Surface.ROTATION_0 ? maxDim : minDim);

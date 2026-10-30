@@ -1046,42 +1046,7 @@ public final class U {
 
     // Determine if a resolution/density combo is blacklisted (unsafe to use under normal circumstances)
     public static boolean isBlacklisted(Context context, String requestedRes, String requestedDpi) {
-        boolean blacklisted = false;
-
-        SharedPreferences prefMain = getPrefMain(context);
-        int defaultHeight = prefMain.getInt("height", 0);
-        int defaultWidth = prefMain.getInt("width", 0);
-        int defaultDpi = getSystemProperty("ro.sf.lcd_density", prefMain.getInt("density", 0));
-
-        int height, width, density;
-        if("reset".equals(requestedRes)) {
-            height = defaultHeight;
-            width = defaultWidth;
-        } else {
-            Scanner scanner = new Scanner(requestedRes);
-            scanner.useDelimiter("x");
-
-            width = scanner.nextInt();
-            height = scanner.nextInt();
-
-            scanner.close();
-        }
-
-        if("reset".equals(requestedDpi))
-            density = defaultDpi;
-        else
-            density = Integer.parseInt(requestedDpi);
-
-        // Blacklist DPI values that result in a smallest width that's too low or too high
-        int smallestWidth = (DisplayMetrics.DENSITY_DEFAULT * Math.min(height, width)) / density;
-        if(smallestWidth < 320 || smallestWidth > 1280)
-            blacklisted = true;
-
-        // On Android 10, blacklist resolutions that are larger than the device's native resolution
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && (height > defaultHeight || width > defaultWidth))
-            blacklisted = true;
-
-        return blacklisted;
+        return false;
     }
 
     // Detects if we are currently casting the screen using Chromecast
