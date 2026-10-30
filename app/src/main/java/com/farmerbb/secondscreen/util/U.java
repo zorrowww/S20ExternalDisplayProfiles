@@ -191,13 +191,13 @@ public final class U {
     public static final String timeoutCommand = "settings put secure lock_screen_lock_after_timeout ";
     public static final String hdmiRotationCommand = "setprop persist.demo.hdmirotation ";
     public static String hdmiRotationCommand(Context context, String rotation) {
-        return hdmiRotationCommand(context, rotation, -1);
+        return hdmiRotationCommand(context, rotation, 0, 0);
     }
 
-    public static String hdmiRotationCommand(Context context, String rotation, int targetLayerStack) {
+    public static String hdmiRotationCommand(Context context, String rotation, int phoneW, int phoneH) {
         String apkPath = context.getPackageCodePath();
         return "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin " 
-                + HdmiRotator.class.getName() + " " + rotation + " 0 0 " + targetLayerStack;
+                + HdmiRotator.class.getName() + " " + rotation + " " + phoneW + " " + phoneH;
     }
 
     public static final String setHomeActivityCommand = "cmd package set-home-activity ";

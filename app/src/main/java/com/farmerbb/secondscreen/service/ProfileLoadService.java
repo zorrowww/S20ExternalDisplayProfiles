@@ -934,14 +934,13 @@ public final class ProfileLoadService extends SecondScreenIntentService {
 
         // HDMI rotation
         String rotationLockNew = prefSaved.getString("rotation_lock_new", "fallback");
-        int extDisplayId = U.getExternalDisplayID(this);
         if("portrait".equals(rotationLockNew) || "portrait".equals(prefSaved.getString("hdmi_rotation", "landscape"))) {
-            su[hdmiRotationCommand] = U.hdmiRotationCommand(this, "1", 0);
+            su[hdmiRotationCommand] = U.hdmiRotationCommand(this, "1", 768, 1366);
         } else if("auto-rotate".equals(rotationLockNew)) {
             // Let NotificationService manage dynamic HDMI orientation based on gyroscope and system orientation
             su[hdmiRotationCommand] = "";
         } else {
-            su[hdmiRotationCommand] = U.hdmiRotationCommand(this, "0", extDisplayId != Display.DEFAULT_DISPLAY ? extDisplayId : 12);
+            su[hdmiRotationCommand] = U.hdmiRotationCommand(this, "0", 1366, 768);
         }
 
         // UI refresh
