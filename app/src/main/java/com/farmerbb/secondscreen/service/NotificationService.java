@@ -32,6 +32,14 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.view.Display;
+import android.content.res.Configuration;
+import android.hardware.SensorManager;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.OrientationEventListener;
+import android.view.Surface;
+import com.farmerbb.secondscreen.util.HdmiRotator;
+
 
 import com.farmerbb.secondscreen.R;
 import com.farmerbb.secondscreen.activity.MainActivity;
@@ -50,6 +58,21 @@ import com.farmerbb.secondscreen.util.U;
 public final class NotificationService extends RotationLockService {
 
     NotificationCompat.Builder mBuilder;
+
+    private OrientationEventListener orientationListener;
+    private int currentHdmiRotation = -1;
+    private int pendingHdmiRotation = -1;
+    private final Handler rotationHandler = new Handler(Looper.getMainLooper());
+    private final Runnable applyRotationRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if(pendingHdmiRotation != -1 && pendingHdmiRotation != currentHdmiRotation) {
+                currentHdmiRotation = pendingHdmiRotation;
+                HdmiRotator.rotate(NotificationService.this, currentHdmiRotation);
+            }
+        }
+    };
+
 
     BroadcastReceiver screenOnReceiver = new BroadcastReceiver() {
         @Override
@@ -154,6 +177,53 @@ public final class NotificationService extends RotationLockService {
         DisplayManager manager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
         manager.registerDisplayListener(listener, null);
 
+        
+        SharedPreferences prefCurrent = U.getPrefCurrent(this);
+        String rotationLock = prefCurrent.getString("rotation_lock_new", "fallback");
+        if("auto-rotate".equals(rotationLock)) {
+            orientationListener = new OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
+                @Override
+                public void onOrientationChanged(int angle) {
+                    if(angle == ORIENTATION_UNKNOWN) return;
+
+                    int targetRotation;
+                    if((angle >= 315 && angle < 360) || (angle >= 0 && angle < 45)) {
+                        // Portrait upright: determine direction from tilt
+                        if(angle >= 315) {
+                            targetRotation = Surface.ROTATION_270; // Left tilt -> counter-clockwise 90
+                        } else {
+                            targetRotation = Surface.ROTATION_90;  // Right tilt or upright -> clockwise 90
+                        }
+                    } else if(angle >= 45 && angle < 135) {
+                        // Landscape right
+                        targetRotation = Surface.ROTATION_0;
+                    } else if(angle >= 135 && angle < 225) {
+                        // Portrait upside-down
+                        targetRotation = angle < 180 ? Surface.ROTATION_90 : Surface.ROTATION_270;
+                    } else { // 225 to 315
+                        // Landscape left
+                        targetRotation = Surface.ROTATION_0;
+                    }
+
+                    if(targetRotation != currentHdmiRotation && targetRotation != pendingHdmiRotation) {
+                        pendingHdmiRotation = targetRotation;
+                        rotationHandler.removeCallbacks(applyRotationRunnable);
+                        rotationHandler.postDelayed(applyRotationRunnable, 250);
+                    }
+                }
+            };
+
+            if(orientationListener.canDetectOrientation()) {
+                orientationListener.enable();
+            }
+        } else if("portrait".equals(rotationLock)) {
+            HdmiRotator.rotate(this, Surface.ROTATION_90);
+            currentHdmiRotation = Surface.ROTATION_90;
+        } else if("landscape".equals(rotationLock)) {
+            HdmiRotator.rotate(this, Surface.ROTATION_0);
+            currentHdmiRotation = Surface.ROTATION_0;
+        }
+
         super.onCreate();
     }
 
@@ -164,6 +234,14 @@ public final class NotificationService extends RotationLockService {
 
         DisplayManager manager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
         manager.unregisterDisplayListener(listener);
+
+        
+        if(orientationListener != null) {
+            orientationListener.disable();
+            orientationListener = null;
+        }
+        rotationHandler.removeCallbacks(applyRotationRunnable);
+        HdmiRotator.rotate(this, Surface.ROTATION_0);
 
         super.onDestroy();
     }
@@ -216,6 +294,30 @@ public final class NotificationService extends RotationLockService {
         }
 
         startForeground(1, mBuilder.build());
+    }
+
+    @Override
+    
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+
+        SharedPreferences prefCurrent = U.getPrefCurrent(this);
+        if("auto-rotate".equals(prefCurrent.getString("rotation_lock_new", "fallback"))) {
+            if(newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                if(currentHdmiRotation != Surface.ROTATION_0) {
+                    pendingHdmiRotation = Surface.ROTATION_0;
+                    rotationHandler.removeCallbacks(applyRotationRunnable);
+                    rotationHandler.post(applyRotationRunnable);
+                }
+            } else if(newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
+                if(currentHdmiRotation != Surface.ROTATION_90 && currentHdmiRotation != Surface.ROTATION_270) {
+                    pendingHdmiRotation = Surface.ROTATION_90;
+                    rotationHandler.removeCallbacks(applyRotationRunnable);
+                    rotationHandler.post(applyRotationRunnable);
+                }
+            }
+        }
     }
 
     @Override

@@ -933,24 +933,11 @@ public final class ProfileLoadService extends SecondScreenIntentService {
         }
 
         // HDMI rotation
-        if(prefCurrent.getBoolean("not_active", true)) {
-            if("portrait".equals(U.getSystemProperty("persist.demo.hdmirotation")))
-                editor.putString("hdmi_rotation_system", "portrait");
-            else
-                editor.putString("hdmi_rotation_system", "landscape");
-        }
-
-        if(prefSaved.getString("hdmi_rotation", "landscape").equals("portrait")) {
-            if(prefCurrent.getBoolean("not_active", true))
-                su[hdmiRotationCommand] = U.hdmiRotationCommand + prefSaved.getString("hdmi_rotation", "landscape");
-            else {
-                if(!prefCurrent.getString("hdmi_rotation", "landscape").equals("portrait"))
-                    su[hdmiRotationCommand] = U.hdmiRotationCommand + prefSaved.getString("hdmi_rotation", "landscape");
-            }
+        String rotationLockNew = prefSaved.getString("rotation_lock_new", "fallback");
+        if("portrait".equals(rotationLockNew) || "portrait".equals(prefSaved.getString("hdmi_rotation", "landscape"))) {
+            su[hdmiRotationCommand] = U.hdmiRotationCommand(this, "1");
         } else {
-            if(!prefCurrent.getBoolean("not_active", true))
-                if(prefCurrent.getString("hdmi_rotation", "landscape").equals("portrait"))
-                    su[hdmiRotationCommand] = U.hdmiRotationCommand + prefCurrent.getString("hdmi_rotation_system", "landscape");
+            su[hdmiRotationCommand] = U.hdmiRotationCommand(this, "0");
         }
 
         // UI refresh

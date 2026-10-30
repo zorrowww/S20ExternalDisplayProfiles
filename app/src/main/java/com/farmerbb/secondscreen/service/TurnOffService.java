@@ -367,8 +367,7 @@ public final class TurnOffService extends SecondScreenIntentService {
             su[immersiveCommand] = U.immersiveCommand("do-nothing");
 
         // HDMI rotation
-        if(prefCurrent.getString("hdmi_rotation", "landscape").equals("portrait"))
-            su[hdmiRotationCommand] = U.hdmiRotationCommand + prefCurrent.getString("hdmi_rotation_system", "landscape");
+        su[hdmiRotationCommand] = U.hdmiRotationCommand(this, "0");
 
         // UI refresh
         switch(uiRefresh) {

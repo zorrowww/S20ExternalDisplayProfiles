@@ -190,6 +190,12 @@ public final class U {
     public static final String stayOnCommand = "settings put global stay_on_while_plugged_in ";
     public static final String timeoutCommand = "settings put secure lock_screen_lock_after_timeout ";
     public static final String hdmiRotationCommand = "setprop persist.demo.hdmirotation ";
+    public static String hdmiRotationCommand(Context context, String rotation) {
+        String apkPath = context.getPackageCodePath();
+        return "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin " 
+                + HdmiRotator.class.getName() + " " + rotation;
+    }
+
     public static final String setHomeActivityCommand = "cmd package set-home-activity ";
     public static final String sehomeCommand = "settings put global sehome_portrait_mode_only ";
 
