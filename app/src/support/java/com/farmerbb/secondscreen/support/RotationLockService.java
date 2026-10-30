@@ -88,7 +88,8 @@ public abstract class RotationLockService extends Service implements ServiceInte
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if(intent.getBooleanExtra("start_foreground", false))
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                || (intent != null && intent.getBooleanExtra("start_foreground", false)))
             startForeground();
 
         return START_STICKY;

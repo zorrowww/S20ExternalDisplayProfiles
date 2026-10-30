@@ -54,10 +54,18 @@ public abstract class SecondScreenIntentService extends IntentService implements
         return binder;
     }
 
+    @Override
+    public int onStartCommand(@Nullable Intent intent, int flags, int startId) {
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForeground();
+        }
+        return super.onStartCommand(intent, flags, startId);
+    }
+
     @CallSuper
     @Override
     protected void onHandleIntent(@Nullable Intent intent) {
-        if(intent.getBooleanExtra("start_foreground", false))
+        if(intent != null && intent.getBooleanExtra("start_foreground", false))
             startForeground();
     }
 
