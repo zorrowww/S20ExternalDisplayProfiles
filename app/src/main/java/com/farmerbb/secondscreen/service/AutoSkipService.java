@@ -47,7 +47,7 @@ public class AutoSkipService extends AccessibilityService {
 
     private String mRetryingPackage = null;
     private int mRetryCount = 0;
-    private static final int MAX_RETRIES = 6;
+    private static final int MAX_RETRIES = 5;
     private static final long RETRY_INTERVAL_MS = 150;
 
     @Override
@@ -69,11 +69,7 @@ public class AutoSkipService extends AccessibilityService {
         if (pkgChars == null) return;
         String pkg = pkgChars.toString();
 
-        if (pkg.startsWith("com.farmerbb.secondscreen")
-                || pkg.equals("android")
-                || pkg.equals("com.android.systemui")
-                || pkg.equals("com.sec.android.app.launcher")
-                || pkg.equals("com.samsung.android.honeyboard")) {
+        if (isExcludedPackage(pkg)) {
             return;
         }
 
@@ -86,27 +82,68 @@ public class AutoSkipService extends AccessibilityService {
         processWindowsAndClick(pkg);
     }
 
-    private void processWindowsAndClick(final String pkg) {
-        List<AccessibilityNodeInfo> roots = new ArrayList<>();
+    private static boolean isExcludedPackage(String pkg) {
+        if (pkg == null) return true;
+        String lower = pkg.toLowerCase();
+        return lower.startsWith("com.farmerbb.secondscreen")
+                || lower.equals("android")
+                || lower.equals("com.android.systemui")
+                || lower.equals("com.sec.android.app.launcher")
+                || lower.contains("honeyboard")
+                || lower.contains("inputmethod")
+                || lower.contains("ime")
+                || lower.contains("keyboard");
+    }
 
+    private void processWindowsAndClick(final String pkg) {
+        // 1. Check if soft keyboard is currently open on screen
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             try {
                 List<AccessibilityWindowInfo> windows = getWindows();
                 if (windows != null) {
                     for (AccessibilityWindowInfo window : windows) {
-                        AccessibilityNodeInfo r = window.getRoot();
-                        if (r != null) roots.add(r);
+                        if (window.getType() == AccessibilityWindowInfo.TYPE_INPUT_METHOD) {
+                            // Soft keyboard is active - user is actively typing, NOT in a splash ad!
+                            return;
+                        }
                     }
                 }
             } catch (Throwable ignored) {}
         }
 
+        // 2. Check if active window has a focused input field (EditText / SearchView)
+        AccessibilityNodeInfo activeRoot = null;
         try {
-            AccessibilityNodeInfo activeRoot = getRootInActiveWindow();
-            if (activeRoot != null && !roots.contains(activeRoot)) {
-                roots.add(activeRoot);
+            activeRoot = getRootInActiveWindow();
+            if (activeRoot != null) {
+                AccessibilityNodeInfo focusedInput = activeRoot.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+                if (focusedInput != null) {
+                    try { focusedInput.recycle(); } catch (Throwable ignored) {}
+                    try { activeRoot.recycle(); } catch (Throwable ignored) {}
+                    return; // User is in an active input / search view, never click!
+                }
             }
         } catch (Throwable ignored) {}
+
+        // 3. Collect eligible application windows
+        List<AccessibilityNodeInfo> roots = new ArrayList<>();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                List<AccessibilityWindowInfo> windows = getWindows();
+                if (windows != null) {
+                    for (AccessibilityWindowInfo window : windows) {
+                        if (window.getType() == AccessibilityWindowInfo.TYPE_APPLICATION) {
+                            AccessibilityNodeInfo r = window.getRoot();
+                            if (r != null) roots.add(r);
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {}
+        }
+
+        if (activeRoot != null && !roots.contains(activeRoot)) {
+            roots.add(activeRoot);
+        }
 
         boolean foundAndClicked = false;
         for (AccessibilityNodeInfo root : roots) {
@@ -151,10 +188,18 @@ public class AutoSkipService extends AccessibilityService {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
                 try {
+                    // Abort if keyboard or focused input is present
+                    AccessibilityNodeInfo focusedInput = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+                    if (focusedInput != null) {
+                        try { focusedInput.recycle(); } catch (Throwable ignored) {}
+                        mRetryingPackage = null;
+                        return;
+                    }
+
                     AccessibilityNodeInfo skipNode = findSkipNode(root);
                     if (skipNode != null) {
                         mRetryCount++;
-                        Log.i(TAG, "Skip button still present in " + pkg + ", rapid retry #" + mRetryCount);
+                        Log.i(TAG, "Skip button still present in " + pkg + ", retry #" + mRetryCount);
                         performSkipClick(skipNode);
                         try {
                             skipNode.recycle();
@@ -178,6 +223,12 @@ public class AutoSkipService extends AccessibilityService {
 
     private AccessibilityNodeInfo findSkipNode(AccessibilityNodeInfo node) {
         if (node == null) return null;
+
+        // Never touch IME or keyboard views
+        CharSequence nodePkg = node.getPackageName();
+        if (nodePkg != null && isExcludedPackage(nodePkg.toString())) {
+            return null;
+        }
 
         if (isSkipNode(node)) {
             return node;
@@ -212,45 +263,51 @@ public class AutoSkipService extends AccessibilityService {
         return false;
     }
 
+    /**
+     * Strictly matches splash ad skip text.
+     * Standalone '关闭' or '×' is deliberately excluded to prevent false clicks on keyboards, search views, or dialogs.
+     */
     private static boolean isSkipText(CharSequence cs) {
         if (cs == null) return false;
         String s = cs.toString().trim();
         if (s.isEmpty() || s.length() > 15) return false;
         if (s.contains("不跳过") || s.contains("不能跳过")) return false;
 
+        // 1. Chinese keywords: must contain "跳过" (e.g. 跳过, 跳过 5s, 跳过(5), 跳过广告, 点击跳过, 跳过/关闭)
         if (s.contains("跳过")) return true;
-        if (s.contains("关闭广告") || s.contains("跳过广告") || s.contains("点击跳过") || s.contains("点击关闭")) return true;
-        if (s.equals("关闭") || s.startsWith("关闭 ") || s.endsWith(" 关闭")) return true;
 
+        // 2. Explicit ad-closing phrases: must contain "广告"
+        if (s.contains("关闭广告") || s.contains("跳过广告")) return true;
+
+        // 3. English skip keywords
         String lower = s.toLowerCase();
         if (lower.equals("skip") || lower.startsWith("skip ") || lower.contains("skip ad") || lower.contains("skipad")) {
             return true;
         }
-        if (lower.equals("close") || lower.equals("close ad")) {
-            return true;
-        }
-
-        if (s.equals("×") || s.equals("✕") || s.equals("✖") || s.equals("╳")) {
+        if (lower.equals("close ad") || lower.equals("close ads")) {
             return true;
         }
 
         return false;
     }
 
+    /**
+     * Strictly matches IDs specific to splash ad skip buttons.
+     * Excludes generic keywords like search, keyboard, edit, etc.
+     */
     private static boolean isSkipId(String resId) {
         if (resId == null) return false;
         String lower = resId.toLowerCase();
-        if (lower.contains("container") || lower.contains("layout") || lower.contains("wrapper")) {
+        if (lower.contains("container") || lower.contains("layout") || lower.contains("wrapper")
+                || lower.contains("search") || lower.contains("keyboard") || lower.contains("edit")
+                || lower.contains("input") || lower.contains("honeyboard")) {
             return false;
         }
         return lower.contains("splash_skip")
                 || lower.contains("skip_button")
                 || lower.contains("btn_skip")
                 || lower.contains("skip_view")
-                || lower.contains("skip_tv")
-                || lower.contains("tv_skip")
                 || lower.contains("count_down")
-                || lower.contains("splash_close")
                 || lower.contains("splash_ad_close")
                 || lower.contains("btn_close_splash");
     }
