@@ -67,12 +67,6 @@ android {
             signingConfig signingConfigs.debug
             applicationIdSuffix ".debug"
             manifestPlaceholders = [appName: "@string/app_name_debug"]
-
-            applicationVariants.all { variant ->
-                variant.outputs.all {
-                    outputFileName = "SecondScreen-${defaultConfig.versionName}-debug.apk"
-                }
-            }
         }
 
         release {
@@ -80,12 +74,12 @@ android {
             shrinkResources false
             signingConfig signingConfigs.release
             manifestPlaceholders = [appName: "@string/app_name"]
+        }
+    }
 
-            applicationVariants.all { variant ->
-                variant.outputs.all {
-                    outputFileName = "SecondScreen-${defaultConfig.versionName}-release.apk"
-                }
-            }
+    applicationVariants.all { variant ->
+        variant.outputs.all {
+            outputFileName = "SecondScreen-${defaultConfig.versionName}-${variant.buildType.name}.apk"
         }
     }
 

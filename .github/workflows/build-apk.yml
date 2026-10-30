@@ -57,7 +57,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            app/build/outputs/apk/free/release/*.apk
-            app/build/outputs/apk/free/debug/*.apk
+            app/build/outputs/apk/free/release/SecondScreen-2.9.4-release.apk
+            app/build/outputs/apk/free/debug/SecondScreen-2.9.4-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
