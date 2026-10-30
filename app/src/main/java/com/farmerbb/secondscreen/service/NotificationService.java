@@ -187,22 +187,28 @@ public final class NotificationService extends RotationLockService {
                     if(angle == ORIENTATION_UNKNOWN) return;
 
                     int targetRotation;
-                    if((angle >= 315 && angle < 360) || (angle >= 0 && angle < 45)) {
-                        // Portrait upright: determine direction from tilt
-                        if(angle >= 315) {
-                            targetRotation = Surface.ROTATION_270; // Left tilt -> counter-clockwise 90
+                    if((angle >= 330 && angle <= 360) || (angle >= 0 && angle <= 30)) {
+                        // Upright portrait: keep active portrait rotation or default to 90
+                        if(currentHdmiRotation == Surface.ROTATION_270) {
+                            targetRotation = Surface.ROTATION_270;
                         } else {
-                            targetRotation = Surface.ROTATION_90;  // Right tilt or upright -> clockwise 90
+                            targetRotation = Surface.ROTATION_90;
                         }
-                    } else if(angle >= 45 && angle < 135) {
-                        // Landscape right
+                    } else if(angle > 30 && angle < 60) {
+                        // Tilted clockwise towards landscape
+                        targetRotation = Surface.ROTATION_90;
+                    } else if(angle >= 60 && angle <= 120) {
+                        // Horizontal landscape (rotated 90 deg)
                         targetRotation = Surface.ROTATION_0;
-                    } else if(angle >= 135 && angle < 225) {
-                        // Portrait upside-down
-                        targetRotation = angle < 180 ? Surface.ROTATION_90 : Surface.ROTATION_270;
-                    } else { // 225 to 315
-                        // Landscape left
+                    } else if(angle > 120 && angle < 240) {
+                        // Upside down
+                        targetRotation = (angle <= 180) ? Surface.ROTATION_90 : Surface.ROTATION_270;
+                    } else if(angle >= 240 && angle <= 280) {
+                        // Horizontal landscape (reverse rotated 270 deg)
                         targetRotation = Surface.ROTATION_0;
+                    } else { // 280 < angle < 330
+                        // Tilted counter-clockwise
+                        targetRotation = Surface.ROTATION_270;
                     }
 
                     if(targetRotation != currentHdmiRotation && targetRotation != pendingHdmiRotation) {
