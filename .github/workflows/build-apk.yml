@@ -31,14 +31,14 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build free debug APK
-        run: ./gradlew --no-daemon :app:assembleFreeDebug --stacktrace
+      - name: Build free APKs (Release & Debug)
+        run: ./gradlew --no-daemon :app:assembleFreeRelease :app:assembleFreeDebug --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SecondScreen-free-debug
-          path: app/build/outputs/apk/free/debug/*.apk
+          name: SecondScreen-APKs
+          path: app/build/outputs/apk/free/*/*.apk
           if-no-files-found: error
           retention-days: 14
 
@@ -47,14 +47,17 @@ jobs:
         if: github.ref == 'refs/heads/main'
         with:
           tag_name: v2.9.4-samsung-latest
-          name: SecondScreen 2.9.4 for Samsung S20 (Auto-Rotation & Cutout)
+          name: SecondScreen 2.9.4 for Samsung S20 (Release & Debug)
           body: |
             Automated build with:
             - Gravity sensor auto-rotate for portrait and landscape video playback
             - Samsung One UI home launcher orientation sync
             - Camera cutout overlap policy automation (removes punch hole black bars)
+            - 100% synchronized HDMI rotation via IRotationWatcher
           draft: false
           prerelease: false
-          files: app/build/outputs/apk/free/debug/*.apk
+          files: |
+            app/build/outputs/apk/free/release/*.apk
+            app/build/outputs/apk/free/debug/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

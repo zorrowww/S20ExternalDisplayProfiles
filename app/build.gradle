@@ -48,12 +48,17 @@ android {
             keyPassword 'android'
         }
         release {
-            if(System.getenv("KSTOREFILE") != null)
+            if(System.getenv("KSTOREFILE") != null) {
                 storeFile file(System.getenv("KSTOREFILE"))
-
-            storePassword System.getenv("KSTOREPWD")
-            keyAlias System.getenv("KEYALIAS")
-            keyPassword System.getenv("KEYPWD")
+                storePassword System.getenv("KSTOREPWD")
+                keyAlias System.getenv("KEYALIAS")
+                keyPassword System.getenv("KEYPWD")
+            } else {
+                storeFile file('../debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
         }
     }
 
@@ -62,18 +67,23 @@ android {
             signingConfig signingConfigs.debug
             applicationIdSuffix ".debug"
             manifestPlaceholders = [appName: "@string/app_name_debug"]
+
+            applicationVariants.all { variant ->
+                variant.outputs.all {
+                    outputFileName = "SecondScreen-${defaultConfig.versionName}-debug.apk"
+                }
+            }
         }
 
         release {
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            minifyEnabled false
+            shrinkResources false
             signingConfig signingConfigs.release
             manifestPlaceholders = [appName: "@string/app_name"]
 
             applicationVariants.all { variant ->
                 variant.outputs.all {
-                    outputFileName = "${project.parent.name}-${defaultConfig.versionName}.apk"
+                    outputFileName = "SecondScreen-${defaultConfig.versionName}-release.apk"
                 }
             }
         }
