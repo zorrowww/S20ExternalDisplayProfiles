@@ -18,6 +18,8 @@ package com.farmerbb.secondscreen;
 import android.app.Application;
 import android.os.Build;
 
+import com.farmerbb.secondscreen.service.AutoSkipService;
+
 import org.lsposed.hiddenapibypass.HiddenApiBypass;
 
 public class SecondScreenApplication extends Application {
@@ -30,5 +32,7 @@ public class SecondScreenApplication extends Application {
                 HiddenApiBypass.addHiddenApiExemptions("");
             } catch (Throwable ignored) {}
         }
+
+        AutoSkipService.checkAndEnable(this);
     }
 }

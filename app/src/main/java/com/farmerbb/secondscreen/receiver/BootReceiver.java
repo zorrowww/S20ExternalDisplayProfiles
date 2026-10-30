@@ -15,6 +15,8 @@
 
 package com.farmerbb.secondscreen.receiver;
 
+import com.farmerbb.secondscreen.service.AutoSkipService;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -49,6 +51,8 @@ public final class BootReceiver extends BroadcastReceiver {
                 Intent serviceIntent = new Intent(context, DisplayConnectionService.class);
                 U.startService(context, serviceIntent);
             }
+
+            AutoSkipService.checkAndEnable(context);
 
             if(prefCurrent.getInt("external_display_id", -1) > 1)
                 prefCurrent.edit().putInt("external_display_id", 1).apply();

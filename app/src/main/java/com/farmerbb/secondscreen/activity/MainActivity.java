@@ -75,6 +75,7 @@ import com.farmerbb.secondscreen.receiver.PackageUpgradeReceiver;
 import com.farmerbb.secondscreen.receiver.TaskerActionReceiver;
 import com.farmerbb.secondscreen.receiver.TaskerConditionReceiver;
 import com.farmerbb.secondscreen.service.DisplayConnectionService;
+import com.farmerbb.secondscreen.service.AutoSkipService;
 import com.farmerbb.secondscreen.service.NotificationService;
 import com.farmerbb.secondscreen.util.U;
 
@@ -289,6 +290,8 @@ SystemAlertPermissionDialogFragment.Listener {
                 Intent serviceIntent = new Intent(this, NotificationService.class);
                 U.startService(this, serviceIntent);
             }
+
+            AutoSkipService.checkAndEnable(this);
 
             if(prefMain.getBoolean("first-run", false)) {
                 // Clear preferences from ProfileEditFragment, just in case

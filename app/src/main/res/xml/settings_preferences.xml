@@ -55,4 +55,10 @@
         android:summary="@string/force_backlight_off_description"
         android:title="@string/force_backlight_off" />
 
+    <CheckBoxPreference
+        android:defaultValue="true"
+        android:key="auto_skip_ads"
+        android:summary="@string/pref_summary_auto_skip_ads"
+        android:title="@string/pref_title_auto_skip_ads" />
+
 </PreferenceScreen>

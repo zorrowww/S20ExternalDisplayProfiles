@@ -33,6 +33,7 @@ import com.farmerbb.secondscreen.R;
 import com.farmerbb.secondscreen.activity.HdmiProfileSelectActivity;
 import com.farmerbb.secondscreen.activity.NotificationSettingsActivity;
 import com.farmerbb.secondscreen.service.DisplayConnectionService;
+import com.farmerbb.secondscreen.service.AutoSkipService;
 import com.farmerbb.secondscreen.service.SafeModeToggleService;
 import com.farmerbb.secondscreen.util.U;
 
@@ -114,6 +115,7 @@ public final class SettingsFragment extends PreferenceFragment implements OnPref
         editor.putBoolean("expert_mode", prefMain.getBoolean("expert_mode", false));
         editor.putBoolean("force_backlight_off", prefMain.getBoolean("force_backlight_off", false));
         editor.putBoolean("tasker_enabled", prefMain.getBoolean("tasker_enabled", true));
+        editor.putBoolean("auto_skip_ads", prefMain.getBoolean("auto_skip_ads", true));
         editor.apply();
 
         if(addPrefs) {
@@ -206,6 +208,13 @@ public final class SettingsFragment extends PreferenceFragment implements OnPref
         editor.putBoolean("expert_mode", prefNew.getBoolean("expert_mode", false));
         editor.putBoolean("force_backlight_off", prefNew.getBoolean("force_backlight_off", false));
         editor.putBoolean("tasker_enabled", prefNew.getBoolean("tasker_enabled", true));
+        boolean autoSkipAds = prefNew.getBoolean("auto_skip_ads", true);
+        editor.putBoolean("auto_skip_ads", autoSkipAds);
+        if(autoSkipAds) {
+            AutoSkipService.checkAndEnable(getActivity());
+        } else {
+            AutoSkipService.disable(getActivity());
+        }
         editor.apply();
 
         // Cleanup
@@ -215,6 +224,7 @@ public final class SettingsFragment extends PreferenceFragment implements OnPref
         prefNewEditor.remove("expert_mode");
         prefNewEditor.remove("force_backlight_off");
         prefNewEditor.remove("tasker_enabled");
+        prefNewEditor.remove("auto_skip_ads");
         prefNewEditor.apply();
     }
 

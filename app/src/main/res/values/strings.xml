@@ -232,4 +232,8 @@
     <string name="safe_mode_dialog">Leaving safe mode on is strongly recommended.\n\nDisabling this option allows SecondScreen to stay active across reboots. Only disable this option if you know how to restore your device\'s resolution and density settings via adb if something goes wrong.</string>
     <string name="shizuku_dialog">SecondScreen uses Shizuku to change device settings, such as resolution and density.\n\nPlease close this dialog once Shizuku permission has been granted.</string>
 
+    <string name="auto_skip_service_name">Auto-Skip Splash Ads Service</string>
+    <string name="auto_skip_service_description">Automatically detects and clicks the Skip button on app splash screens</string>
+    <string name="pref_title_auto_skip_ads">Auto-skip splash ads</string>
+    <string name="pref_summary_auto_skip_ads">Automatically skip splash advertisements when opening apps</string>
 </resources>

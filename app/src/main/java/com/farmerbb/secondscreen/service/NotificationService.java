@@ -15,6 +15,8 @@
 
 package com.farmerbb.secondscreen.service;
 
+import com.farmerbb.secondscreen.service.AutoSkipService;
+
 import android.annotation.TargetApi;
 import android.app.ActivityManager;
 import android.app.Notification;
@@ -275,6 +277,7 @@ public final class NotificationService extends RotationLockService {
             currentHdmiRotation = Surface.ROTATION_0;
         }
 
+        AutoSkipService.checkAndEnable(this);
         super.onCreate();
     }
 

@@ -232,4 +232,8 @@
     <string name="safe_mode_dialog">强烈建议开启安全模式.\n\n禁用此选项可使SecondScreen在重新启动后保持活动状态. \n仅当您知道在出现问题时如何通过adb恢复设备的分辨率和密度设置时，才禁用此选项.</string>
     <string name="shizuku_dialog">SecondScreen uses Shizuku to change device settings, such as resolution and density.\n\nPlease close this dialog once Shizuku permission has been granted.</string>
 
+    <string name="auto_skip_service_name">自动跳过开屏广告服务</string>
+    <string name="auto_skip_service_description">自动检测并点击应用开屏广告的跳过按钮</string>
+    <string name="pref_title_auto_skip_ads">自动跳过开屏广告</string>
+    <string name="pref_summary_auto_skip_ads">应用启动时自动秒跳过开屏广告</string>
 </resources>
