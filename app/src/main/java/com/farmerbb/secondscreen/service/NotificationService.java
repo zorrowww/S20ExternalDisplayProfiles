@@ -169,7 +169,9 @@ public final class NotificationService extends RotationLockService {
             intent.setAction(U.SCREEN_CONNECT);
             LocalBroadcastManager.getInstance(NotificationService.this).sendBroadcast(intent);
 
+            AudioRoutingHelper.applyAudioRouting(NotificationService.this);
             AudioRoutingHelper.applyAudioRoutingDelayed(NotificationService.this, 800);
+            AudioRoutingHelper.applyAudioRoutingDelayed(NotificationService.this, 2000);
 
             DisplayManager dm = (DisplayManager) getSystemService(DISPLAY_SERVICE);
             Display[] displays = dm.getDisplays();

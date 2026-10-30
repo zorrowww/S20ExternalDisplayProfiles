@@ -36,6 +36,7 @@ import com.farmerbb.secondscreen.activity.MainActivity;
 import com.farmerbb.secondscreen.activity.TurnOffActivity;
 import com.farmerbb.secondscreen.support.ServiceBinder;
 import com.farmerbb.secondscreen.support.ServiceInterface;
+import com.farmerbb.secondscreen.util.AudioRoutingHelper;
 import com.farmerbb.secondscreen.util.U;
 
 // This is a long-running service started if the "Enable auto-start" preference is set.
@@ -49,6 +50,10 @@ public final class DisplayConnectionService extends Service implements ServiceIn
     DisplayManager.DisplayListener listener = new DisplayManager.DisplayListener() {
         @Override
         public void onDisplayAdded(int displayId) {
+            AudioRoutingHelper.applyAudioRouting(DisplayConnectionService.this);
+            AudioRoutingHelper.applyAudioRoutingDelayed(DisplayConnectionService.this, 1000);
+            AudioRoutingHelper.applyAudioRoutingDelayed(DisplayConnectionService.this, 2500);
+
             SharedPreferences prefCurrent = U.getPrefCurrent(DisplayConnectionService.this);
             DisplayManager dm = (DisplayManager) getSystemService(DISPLAY_SERVICE);
             Display[] displays = dm.getDisplays();
@@ -118,6 +123,7 @@ public final class DisplayConnectionService extends Service implements ServiceIn
     public void onCreate() {
         DisplayManager manager = (DisplayManager) getSystemService(DISPLAY_SERVICE);
         manager.registerDisplayListener(listener, null);
+        AudioRoutingHelper.applyAudioRouting(this);
     }
 
     @Override
