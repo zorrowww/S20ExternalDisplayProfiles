@@ -213,19 +213,20 @@ public final class NotificationService extends RotationLockService {
                     if(angle == ORIENTATION_UNKNOWN) return;
 
                     int targetRotation = currentHdmiRotation;
-                    if(currentHdmiRotation == Surface.ROTATION_0) {
-                        // Currently in Landscape: switch to Portrait only if clearly vertical
-                        if((angle >= 335 || angle <= 25) || (angle >= 155 && angle <= 205)) {
-                            targetRotation = Surface.ROTATION_90;
-                        }
-                    } else {
-                        // Currently in Portrait: switch to Landscape only if clearly horizontal
-                        if((angle >= 65 && angle <= 115) || (angle >= 245 && angle <= 295)) {
-                            targetRotation = Surface.ROTATION_0;
-                        } else if(currentHdmiRotation == -1) {
-                            targetRotation = Surface.ROTATION_90;
-                        }
+                    if(angle >= 325 || angle <= 35) {
+                        // 正向竖屏 (Upright Portrait)
+                        targetRotation = Surface.ROTATION_90;
+                    } else if(angle >= 55 && angle <= 125) {
+                        // 右侧横屏 (Landscape Right)
+                        targetRotation = Surface.ROTATION_0;
+                    } else if(angle >= 145 && angle <= 215) {
+                        // 上下颠倒竖屏 (Upside-Down Reverse Portrait)
+                        targetRotation = Surface.ROTATION_270;
+                    } else if(angle >= 235 && angle <= 305) {
+                        // 左侧横屏 (Landscape Left)
+                        targetRotation = Surface.ROTATION_0;
                     }
+                    // 35-55, 125-145, 215-235, 305-325 为 20° 迟滞死区，保持当前状态，彻底防抖
 
                     if(targetRotation != -1) {
                         updateTargetRotation(targetRotation);
@@ -325,7 +326,8 @@ public final class NotificationService extends RotationLockService {
             if(newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
                 updateTargetRotation(Surface.ROTATION_0);
             } else if(newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                updateTargetRotation(Surface.ROTATION_90);
+                int target = (currentHdmiRotation == Surface.ROTATION_270) ? Surface.ROTATION_270 : Surface.ROTATION_90;
+                updateTargetRotation(target);
             }
         }
     }
