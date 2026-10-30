@@ -59,12 +59,17 @@ public final class NotificationService extends RotationLockService {
 
     NotificationCompat.Builder mBuilder;
 
-    private OrientationEventListener orientationListener;
     private int currentHdmiRotation = -1;
-    private int pendingHdmiRotation = -1;
-    private final Handler rotationHandler = new Handler(Looper.getMainLooper());
 
     private void getPhoneDimensions(android.graphics.Point size) {
+        DisplayManager dm = (DisplayManager) getSystemService(DISPLAY_SERVICE);
+        if(dm != null) {
+            Display defaultDisplay = dm.getDisplay(Display.DEFAULT_DISPLAY);
+            if(defaultDisplay != null) {
+                defaultDisplay.getRealSize(size);
+                return;
+            }
+        }
         android.view.WindowManager wm = (android.view.WindowManager) getSystemService(Context.WINDOW_SERVICE);
         if(wm != null && wm.getDefaultDisplay() != null) {
             wm.getDefaultDisplay().getRealSize(size);
@@ -74,17 +79,40 @@ public final class NotificationService extends RotationLockService {
         }
     }
 
-    private final Runnable applyRotationRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if(pendingHdmiRotation != -1 && pendingHdmiRotation != currentHdmiRotation) {
-                currentHdmiRotation = pendingHdmiRotation;
-                android.graphics.Point size = new android.graphics.Point();
-                getPhoneDimensions(size);
-                HdmiRotator.rotate(NotificationService.this, currentHdmiRotation, size.x, size.y);
-            }
+    private synchronized void syncHdmiWithPhone() {
+        SharedPreferences prefCurrent = U.getPrefCurrent(this);
+        String rotationLock = prefCurrent.getString("rotation_lock_new", "fallback");
+        if(!"auto-rotate".equals(rotationLock)) {
+            return;
         }
-    };
+
+        android.graphics.Point size = new android.graphics.Point();
+        getPhoneDimensions(size);
+
+        int currentOrientation = getResources().getConfiguration().orientation;
+        boolean isLandscape = (size.x > size.y) || (currentOrientation == Configuration.ORIENTATION_LANDSCAPE);
+
+        int targetHdmiRotation;
+        int phoneW;
+        int phoneH;
+
+        if(isLandscape) {
+            // 方案一：横屏方案 (原生 1366x768 满屏无畸变输出)
+            targetHdmiRotation = Surface.ROTATION_0;
+            phoneW = Math.max(size.x, size.y);
+            phoneH = Math.min(size.x, size.y);
+        } else {
+            // 方案二：竖屏翻转方案 (HDMI 翻转 90°，768x1366 1:1 满屏无黑边)
+            targetHdmiRotation = Surface.ROTATION_90;
+            phoneW = Math.min(size.x, size.y);
+            phoneH = Math.max(size.x, size.y);
+        }
+
+        if(targetHdmiRotation != currentHdmiRotation) {
+            currentHdmiRotation = targetHdmiRotation;
+            HdmiRotator.rotate(this, currentHdmiRotation, phoneW, phoneH);
+        }
+    }
 
 
     BroadcastReceiver screenOnReceiver = new BroadcastReceiver() {
@@ -139,10 +167,16 @@ public final class NotificationService extends RotationLockService {
                     U.startService(NotificationService.this, serviceIntent);
                 }
             } catch (ArrayIndexOutOfBoundsException e) { /* Gracefully fail */ }
+
+            syncHdmiWithPhone();
         }
 
         @Override
-        public void onDisplayChanged(int displayId) {}
+        public void onDisplayChanged(int displayId) {
+            if(displayId == Display.DEFAULT_DISPLAY) {
+                syncHdmiWithPhone();
+            }
+        }
 
         @Override
         public void onDisplayRemoved(int displayId) {
@@ -194,58 +228,7 @@ public final class NotificationService extends RotationLockService {
         SharedPreferences prefCurrent = U.getPrefCurrent(this);
         String rotationLock = prefCurrent.getString("rotation_lock_new", "fallback");
         if("auto-rotate".equals(rotationLock)) {
-            int initialOrientation = getResources().getConfiguration().orientation;
-            android.graphics.Point size = new android.graphics.Point();
-            getPhoneDimensions(size);
-            if(initialOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                currentHdmiRotation = Surface.ROTATION_0;
-                HdmiRotator.rotate(this, Surface.ROTATION_0, size.x, size.y);
-            } else {
-                currentHdmiRotation = Surface.ROTATION_90;
-                HdmiRotator.rotate(this, Surface.ROTATION_90, size.x, size.y);
-            }
-
-            orientationListener = new OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
-                @Override
-                public void onOrientationChanged(int angle) {
-                    if(angle == ORIENTATION_UNKNOWN) return;
-
-                    int targetRotation;
-                    if((angle >= 330 && angle <= 360) || (angle >= 0 && angle <= 30)) {
-                        // Upright portrait: keep active portrait rotation or default to 90
-                        if(currentHdmiRotation == Surface.ROTATION_270) {
-                            targetRotation = Surface.ROTATION_270;
-                        } else {
-                            targetRotation = Surface.ROTATION_90;
-                        }
-                    } else if(angle > 30 && angle < 60) {
-                        // Tilted clockwise towards landscape
-                        targetRotation = Surface.ROTATION_90;
-                    } else if(angle >= 60 && angle <= 120) {
-                        // Horizontal landscape (rotated 90 deg)
-                        targetRotation = Surface.ROTATION_0;
-                    } else if(angle > 120 && angle < 240) {
-                        // Upside down
-                        targetRotation = (angle <= 180) ? Surface.ROTATION_90 : Surface.ROTATION_270;
-                    } else if(angle >= 240 && angle <= 280) {
-                        // Horizontal landscape (reverse rotated 270 deg)
-                        targetRotation = Surface.ROTATION_0;
-                    } else { // 280 < angle < 330
-                        // Tilted counter-clockwise
-                        targetRotation = Surface.ROTATION_270;
-                    }
-
-                    if(targetRotation != currentHdmiRotation && targetRotation != pendingHdmiRotation) {
-                        pendingHdmiRotation = targetRotation;
-                        rotationHandler.removeCallbacks(applyRotationRunnable);
-                        rotationHandler.postDelayed(applyRotationRunnable, 250);
-                    }
-                }
-            };
-
-            if(orientationListener.canDetectOrientation()) {
-                orientationListener.enable();
-            }
+            syncHdmiWithPhone();
         } else if("portrait".equals(rotationLock)) {
             HdmiRotator.rotate(this, Surface.ROTATION_90, 768, 1366);
             currentHdmiRotation = Surface.ROTATION_90;
@@ -266,11 +249,6 @@ public final class NotificationService extends RotationLockService {
         manager.unregisterDisplayListener(listener);
 
         
-        if(orientationListener != null) {
-            orientationListener.disable();
-            orientationListener = null;
-        }
-        rotationHandler.removeCallbacks(applyRotationRunnable);
         HdmiRotator.rotate(this, Surface.ROTATION_0, 1366, 768);
 
         super.onDestroy();
@@ -329,23 +307,7 @@ public final class NotificationService extends RotationLockService {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-
-        SharedPreferences prefCurrent = U.getPrefCurrent(this);
-        if("auto-rotate".equals(prefCurrent.getString("rotation_lock_new", "fallback"))) {
-            if(newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                if(currentHdmiRotation != Surface.ROTATION_0) {
-                    pendingHdmiRotation = Surface.ROTATION_0;
-                    rotationHandler.removeCallbacks(applyRotationRunnable);
-                    rotationHandler.post(applyRotationRunnable);
-                }
-            } else if(newConfig.orientation == Configuration.ORIENTATION_PORTRAIT) {
-                if(currentHdmiRotation != Surface.ROTATION_90 && currentHdmiRotation != Surface.ROTATION_270) {
-                    pendingHdmiRotation = Surface.ROTATION_90;
-                    rotationHandler.removeCallbacks(applyRotationRunnable);
-                    rotationHandler.post(applyRotationRunnable);
-                }
-            }
-        }
+        syncHdmiWithPhone();
     }
 
     @Override
