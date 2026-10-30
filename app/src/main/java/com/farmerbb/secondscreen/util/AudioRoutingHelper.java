@@ -46,68 +46,147 @@ public class AudioRoutingHelper {
 
         new Thread(() -> {
             try {
-                // 1. Disable Samsung DeX auto-launch & display audio redirection
-                try {
-                    Bundle b1 = new Bundle();
-                    b1.putString("key", "hdmi_auto_enter");
-                    b1.putString("val", forceSpeaker ? "false" : "true");
-                    context.getContentResolver().call(
-                            Uri.parse("content://com.sec.android.desktopmode.uiservice.SettingsProvider"),
-                            "setSettings", null, b1);
+                // 1. In-process execution (app level)
+                applyInProcess(context, forceSpeaker);
 
-                    Bundle b2 = new Bundle();
-                    b2.putString("key", "audio_output_to_display");
-                    b2.putString("val", forceSpeaker ? "false" : "true");
-                    context.getContentResolver().call(
-                            Uri.parse("content://com.sec.android.desktopmode.uiservice.SettingsProvider"),
-                            "setSettings", null, b2);
-
-                    if (forceSpeaker) {
-                        Intent exitDex = new Intent("com.samsung.android.desktopmode.action.EXIT_DESKTOP_MODE");
-                        context.sendBroadcast(exitDex);
-                    }
-                    Log.i(TAG, "Applied Samsung DeX settings override (forceSpeaker=" + forceSpeaker + ")");
-                } catch (Throwable t) {
-                    Log.d(TAG, "DeX settings override via resolver: " + t.getMessage());
-                }
-
+                // 2. Root execution via app_process (UID 0 root, bypasses MODIFY_AUDIO_ROUTING permission)
                 if (U.hasElevatedPermissions(context, false)) {
-                    try {
-                        String autoEnterVal = forceSpeaker ? "false" : "true";
-                        String audioDisplayVal = forceSpeaker ? "false" : "true";
-                        U.runCommand(context, "content call --uri content://com.sec.android.desktopmode.uiservice.SettingsProvider --method setSettings --extra key:s:hdmi_auto_enter --extra val:s:" + autoEnterVal);
-                        U.runCommand(context, "content call --uri content://com.sec.android.desktopmode.uiservice.SettingsProvider --method setSettings --extra key:s:audio_output_to_display --extra val:s:" + audioDisplayVal);
-                        if (forceSpeaker) {
-                            U.runCommand(context, "am broadcast -a com.samsung.android.desktopmode.action.EXIT_DESKTOP_MODE");
-                        }
-                    } catch (Throwable t) {
-                        Log.d(TAG, "DeX settings override via root: " + t.getMessage());
-                    }
+                    String apkPath = context.getPackageCodePath();
+                    String cmd = "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin " 
+                            + AudioRoutingHelper.class.getName() + " " + forceSpeaker;
+                    U.runCommand(context, cmd);
                 }
+            } catch (Throwable t) {
+                Log.e(TAG, "Failed to apply audio routing", t);
+            }
+        }).start();
+    }
 
-                AudioManager am = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
-                if (am == null) return;
+    private static void applyInProcess(final Context context, final boolean forceSpeaker) {
+        try {
+            // DeX settings override
+            try {
+                Bundle b1 = new Bundle();
+                b1.putString("key", "hdmi_auto_enter");
+                b1.putString("val", forceSpeaker ? "false" : "true");
+                context.getContentResolver().call(
+                        Uri.parse("content://com.sec.android.desktopmode.uiservice.SettingsProvider"),
+                        "setSettings", null, b1);
 
-                // 2. Samsung One UI proprietary method: AudioManager.setForceSpeakerOn(boolean)
+                Bundle b2 = new Bundle();
+                b2.putString("key", "audio_output_to_display");
+                b2.putString("val", forceSpeaker ? "false" : "true");
+                context.getContentResolver().call(
+                        Uri.parse("content://com.sec.android.desktopmode.uiservice.SettingsProvider"),
+                        "setSettings", null, b2);
+
+                if (forceSpeaker) {
+                    Intent exitDex = new Intent("com.samsung.android.desktopmode.action.EXIT_DESKTOP_MODE");
+                    context.sendBroadcast(exitDex);
+                }
+            } catch (Throwable ignored) {}
+
+            AudioManager am = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            if (am == null) return;
+
+            // Samsung One UI proprietary method: AudioManager.setForceSpeakerOn(boolean)
+            try {
+                Method m = am.getClass().getMethod("setForceSpeakerOn", boolean.class);
+                m.invoke(am, forceSpeaker);
+                Log.i(TAG, "In-process setForceSpeakerOn(" + forceSpeaker + ") succeeded");
+            } catch (Throwable ignored) {}
+
+            // Android AudioSystem.setForceUse
+            try {
+                Class<?> asCls = Class.forName("android.media.AudioSystem");
+                Method m = asCls.getMethod("setForceUse", int.class, int.class);
+                m.invoke(null, 1, forceSpeaker ? 1 : 0);
+                Log.i(TAG, "In-process AudioSystem.setForceUse(1, " + (forceSpeaker ? 1 : 0) + ") succeeded");
+            } catch (Throwable ignored) {}
+
+            // Android 12+ Communication device
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    if (forceSpeaker) {
+                        for (AudioDeviceInfo dev : am.getAvailableCommunicationDevices()) {
+                            if (dev.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                                am.setCommunicationDevice(dev);
+                                break;
+                            }
+                        }
+                    } else {
+                        am.clearCommunicationDevice();
+                    }
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "applyInProcess error", t);
+        }
+    }
+
+    /**
+     * Entry point when executed as root (UID 0) via app_process.
+     */
+    public static void main(String[] args) {
+        boolean forceSpeaker = true;
+        if (args.length > 0) {
+            forceSpeaker = !"false".equalsIgnoreCase(args[0].trim());
+        }
+        System.out.println("AudioRoutingHelper [UID 0]: forceSpeaker=" + forceSpeaker);
+
+        try {
+            Class<?> atCls = Class.forName("android.app.ActivityThread");
+            Object at = atCls.getMethod("systemMain").invoke(null);
+            Context ctx = (Context) atCls.getMethod("getSystemContext").invoke(at);
+
+            // 1. DeX settings override
+            try {
+                Bundle b1 = new Bundle();
+                b1.putString("key", "hdmi_auto_enter");
+                b1.putString("val", forceSpeaker ? "false" : "true");
+                ctx.getContentResolver().call(
+                        Uri.parse("content://com.sec.android.desktopmode.uiservice.SettingsProvider"),
+                        "setSettings", null, b1);
+
+                Bundle b2 = new Bundle();
+                b2.putString("key", "audio_output_to_display");
+                b2.putString("val", forceSpeaker ? "false" : "true");
+                ctx.getContentResolver().call(
+                        Uri.parse("content://com.sec.android.desktopmode.uiservice.SettingsProvider"),
+                        "setSettings", null, b2);
+
+                if (forceSpeaker) {
+                    Intent exitDex = new Intent("com.samsung.android.desktopmode.action.EXIT_DESKTOP_MODE");
+                    ctx.sendBroadcast(exitDex);
+                }
+                System.out.println("DeX settings override applied.");
+            } catch (Throwable t) {
+                System.err.println("DeX override error: " + t.getMessage());
+            }
+
+            // 2. AudioManager & AudioSystem operations with root privileges
+            AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
+            if (am != null) {
+                // Samsung setForceSpeakerOn
                 try {
                     Method m = am.getClass().getMethod("setForceSpeakerOn", boolean.class);
                     m.invoke(am, forceSpeaker);
-                    Log.i(TAG, "Invoked AudioManager.setForceSpeakerOn(" + forceSpeaker + ")");
+                    System.out.println("Invoked AudioManager.setForceSpeakerOn(" + forceSpeaker + ")");
                 } catch (Throwable t) {
-                    Log.d(TAG, "setForceSpeakerOn not available: " + t.getMessage());
+                    System.err.println("setForceSpeakerOn error: " + t.getMessage());
                 }
 
-                // 3. Android AudioSystem.setForceUse(FOR_MEDIA = 1, forceSpeaker ? FORCE_SPEAKER = 1 : FORCE_NONE = 0)
+                // AudioSystem setForceUse
                 try {
                     Class<?> asCls = Class.forName("android.media.AudioSystem");
                     Method m = asCls.getMethod("setForceUse", int.class, int.class);
                     m.invoke(null, 1, forceSpeaker ? 1 : 0);
-                    Log.i(TAG, "Invoked AudioSystem.setForceUse(1, " + (forceSpeaker ? 1 : 0) + ")");
+                    System.out.println("Invoked AudioSystem.setForceUse(1, " + (forceSpeaker ? 1 : 0) + ")");
                 } catch (Throwable t) {
-                    Log.d(TAG, "setForceUse not available: " + t.getMessage());
+                    System.err.println("setForceUse error: " + t.getMessage());
                 }
 
-                // 4. Android 11+ AudioProductStrategy preferred device
+                // AudioProductStrategy preferred device (Root UID 0 bypasses MODIFY_AUDIO_ROUTING check)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     try {
                         AudioDeviceInfo speakerDevice = null;
@@ -137,15 +216,15 @@ public class AudioRoutingHelper {
                                         removePref.invoke(am, s);
                                     }
                                 }
-                                Log.i(TAG, "Applied setPreferredDeviceForStrategy with AudioDeviceAttributes for speaker: " + forceSpeaker);
+                                System.out.println("setPreferredDeviceForStrategy applied for " + strategies.size() + " strategies.");
                             }
                         }
                     } catch (Throwable t) {
-                        Log.e(TAG, "setPreferredDeviceForStrategy error", t);
+                        System.err.println("setPreferredDeviceForStrategy error: " + t.getMessage());
                     }
                 }
 
-                // 5. Android 12+ Communication device (for calls/system routing)
+                // Communication device
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     try {
                         if (forceSpeaker) {
@@ -158,13 +237,15 @@ public class AudioRoutingHelper {
                         } else {
                             am.clearCommunicationDevice();
                         }
+                        System.out.println("CommunicationDevice updated.");
                     } catch (Throwable ignored) {}
                 }
-
-            } catch (Throwable t) {
-                Log.e(TAG, "Failed to apply audio routing", t);
             }
-        }).start();
+
+            System.out.println("AudioRoutingHelper finished successfully.");
+        } catch (Throwable t) {
+            t.printStackTrace();
+        }
     }
 
     /**
