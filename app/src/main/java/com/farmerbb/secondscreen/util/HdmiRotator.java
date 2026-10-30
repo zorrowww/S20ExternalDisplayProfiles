@@ -148,14 +148,16 @@ public class HdmiRotator {
                 int minDim = Math.min(dispW, dispH);
 
                 Rect layerStackRect;
-                Rect displayRect = new Rect(0, 0, maxDim, minDim);
+                Rect displayRect;
 
                 if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
-                    // For portrait source content rotated 90 or 270 degrees to fill landscape monitor
+                    // For portrait source content rotated 90 or 270 degrees in oriented space
                     layerStackRect = new Rect(0, 0, minDim, maxDim);
+                    displayRect = new Rect(0, 0, minDim, maxDim);
                 } else {
                     // Standard landscape source content
                     layerStackRect = new Rect(0, 0, maxDim, minDim);
+                    displayRect = new Rect(0, 0, maxDim, minDim);
                 }
 
                 System.out.println("Applying setDisplayProjection: rotation=" + rotation
