@@ -26,7 +26,9 @@ public class SecondScreenApplication extends Application {
         super.onCreate();
         
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            HiddenApiBypass.addHiddenApiExemptions("");
+            try {
+                HiddenApiBypass.addHiddenApiExemptions("");
+            } catch (Throwable ignored) {}
         }
     }
 }
