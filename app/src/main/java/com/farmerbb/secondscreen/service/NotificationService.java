@@ -297,8 +297,6 @@ public final class NotificationService extends RotationLockService {
     }
 
     @Override
-    
-    @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
 
