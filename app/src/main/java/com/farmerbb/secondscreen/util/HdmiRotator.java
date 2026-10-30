@@ -22,6 +22,7 @@ public class HdmiRotator {
         int targetRotation = Surface.ROTATION_0;
         int customWidth = 0;
         int customHeight = 0;
+        int targetLayerStack = -1;
 
         if (args.length > 0) {
             String arg0 = args[0].trim().toLowerCase();
@@ -60,10 +61,17 @@ public class HdmiRotator {
             } catch (Exception ignored) {}
         }
 
-        System.out.println("HdmiRotator running: targetRotation=" + targetRotation 
-                + " customW=" + customWidth + " customH=" + customHeight);
+        if (args.length >= 4) {
+            try {
+                targetLayerStack = Integer.parseInt(args[3]);
+            } catch (Exception ignored) {}
+        }
 
-        boolean success = applyHdmiRotation(targetRotation, customWidth, customHeight);
+        System.out.println("HdmiRotator running: targetRotation=" + targetRotation 
+                + " customW=" + customWidth + " customH=" + customHeight
+                + " targetLayerStack=" + targetLayerStack);
+
+        boolean success = applyHdmiRotation(targetRotation, customWidth, customHeight, targetLayerStack);
         System.out.println("HdmiRotator result: " + (success ? "SUCCESS" : "FAILED"));
     }
 
@@ -71,10 +79,14 @@ public class HdmiRotator {
      * Executes rotation via app_process with root UID 0.
      */
     public static void rotate(Context context, int rotation) {
+        rotate(context, rotation, -1);
+    }
+
+    public static void rotate(Context context, int rotation, int targetLayerStack) {
         try {
             String apkPath = context.getPackageCodePath();
             String cmd = "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin " 
-                    + HdmiRotator.class.getName() + " " + rotation;
+                    + HdmiRotator.class.getName() + " " + rotation + " 0 0 " + targetLayerStack;
             Log.d(TAG, "Executing root command: " + cmd);
             U.runCommand(context, cmd);
         } catch (Throwable t) {
@@ -82,10 +94,14 @@ public class HdmiRotator {
         }
     }
 
+    public static boolean applyHdmiRotation(int rotation, int customW, int customH) {
+        return applyHdmiRotation(rotation, customW, customH, -1);
+    }
+
     /**
      * Applies projection transformation to external HDMI displays using SurfaceControl.
      */
-    public static boolean applyHdmiRotation(int rotation, int customW, int customH) {
+    public static boolean applyHdmiRotation(int rotation, int customW, int customH, int targetLayerStack) {
         try {
             Class<?> scClass = Class.forName("android.view.SurfaceControl");
             Class<?> txClass = Class.forName("android.view.SurfaceControl$Transaction");
@@ -149,23 +165,28 @@ public class HdmiRotator {
 
                 Rect layerStackRect;
                 Rect displayRect;
+                int actualLayerStack;
 
                 if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
-                    // For portrait source content rotated 90 or 270 degrees in oriented space
+                    // --- 方案二：竖屏翻转方案 (Flip Scheme for Vertical) ---
+                    // 手机陀螺仪检测到竖立或视频竖屏全屏时，将 HDMI 信号翻转 90°/270°，直接映射 layerStack 0 (768x1366) 满屏显示
+                    actualLayerStack = 0;
                     layerStackRect = new Rect(0, 0, minDim, maxDim);
                     displayRect = new Rect(0, 0, minDim, maxDim);
                 } else {
-                    // Standard landscape source content
+                    // --- 方案一：横屏走之前的原生方案 (Original Scheme for Landscape) ---
+                    // 手机陀螺仪检测到横置或横屏视频全屏时，恢复原生外接屏 layerStack (如 12)，由系统原生渲染 1366x768 满屏
+                    actualLayerStack = targetLayerStack > 0 ? targetLayerStack : 12;
                     layerStackRect = new Rect(0, 0, maxDim, minDim);
                     displayRect = new Rect(0, 0, maxDim, minDim);
                 }
 
                 System.out.println("Applying setDisplayProjection: rotation=" + rotation
+                        + " layerStack=" + actualLayerStack
                         + " layerStackRect=" + layerStackRect + " displayRect=" + displayRect);
 
                 if (setDisplayLayerStack != null) {
-                    // Ensure mirroring layerStack 0
-                    setDisplayLayerStack.invoke(transaction, token, 0);
+                    setDisplayLayerStack.invoke(transaction, token, actualLayerStack);
                 }
 
                 setDisplayProjection.invoke(transaction, token, rotation, layerStackRect, displayRect);

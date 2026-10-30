@@ -63,12 +63,42 @@ public final class NotificationService extends RotationLockService {
     private int currentHdmiRotation = -1;
     private int pendingHdmiRotation = -1;
     private final Handler rotationHandler = new Handler(Looper.getMainLooper());
+
+    private int getHdmiDisplayId() {
+        DisplayManager dm = (DisplayManager) getSystemService(Context.DISPLAY_SERVICE);
+        if(dm != null) {
+            for(Display d : dm.getDisplays()) {
+                if(d.getDisplayId() == Display.DEFAULT_DISPLAY) continue;
+                try {
+                    java.lang.reflect.Method getType = Display.class.getMethod("getType");
+                    int type = (Integer) getType.invoke(d);
+                    if(type == 2) return d.getDisplayId(); // Display.TYPE_EXTERNAL
+                } catch (Throwable ignored) {}
+                if((d.getFlags() & Display.FLAG_PRESENTATION) != 0) {
+                    return d.getDisplayId();
+                }
+                if(d.getName() != null && d.getName().toLowerCase().contains("hdmi")) {
+                    return d.getDisplayId();
+                }
+            }
+        }
+        int extId = U.getExternalDisplayID(this);
+        return extId != Display.DEFAULT_DISPLAY ? extId : 12;
+    }
+
     private final Runnable applyRotationRunnable = new Runnable() {
         @Override
         public void run() {
             if(pendingHdmiRotation != -1 && pendingHdmiRotation != currentHdmiRotation) {
                 currentHdmiRotation = pendingHdmiRotation;
-                HdmiRotator.rotate(NotificationService.this, currentHdmiRotation);
+                int extDisplayId = getHdmiDisplayId();
+                if(currentHdmiRotation == Surface.ROTATION_0) {
+                    // Landscape: 走之前的原生方案 (layerStack 12, rotation 0)
+                    HdmiRotator.rotate(NotificationService.this, Surface.ROTATION_0, extDisplayId);
+                } else {
+                    // Portrait: 翻转方案 (layerStack 0, rotation 90/270 满屏)
+                    HdmiRotator.rotate(NotificationService.this, currentHdmiRotation, 0);
+                }
             }
         }
     };
@@ -181,6 +211,16 @@ public final class NotificationService extends RotationLockService {
         SharedPreferences prefCurrent = U.getPrefCurrent(this);
         String rotationLock = prefCurrent.getString("rotation_lock_new", "fallback");
         if("auto-rotate".equals(rotationLock)) {
+            int initialOrientation = getResources().getConfiguration().orientation;
+            int extDisplayId = getHdmiDisplayId();
+            if(initialOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                currentHdmiRotation = Surface.ROTATION_0;
+                HdmiRotator.rotate(this, Surface.ROTATION_0, extDisplayId);
+            } else {
+                currentHdmiRotation = Surface.ROTATION_90;
+                HdmiRotator.rotate(this, Surface.ROTATION_90, 0);
+            }
+
             orientationListener = new OrientationEventListener(this, SensorManager.SENSOR_DELAY_NORMAL) {
                 @Override
                 public void onOrientationChanged(int angle) {
@@ -223,10 +263,10 @@ public final class NotificationService extends RotationLockService {
                 orientationListener.enable();
             }
         } else if("portrait".equals(rotationLock)) {
-            HdmiRotator.rotate(this, Surface.ROTATION_90);
+            HdmiRotator.rotate(this, Surface.ROTATION_90, 0);
             currentHdmiRotation = Surface.ROTATION_90;
         } else if("landscape".equals(rotationLock)) {
-            HdmiRotator.rotate(this, Surface.ROTATION_0);
+            HdmiRotator.rotate(this, Surface.ROTATION_0, getHdmiDisplayId());
             currentHdmiRotation = Surface.ROTATION_0;
         }
 
@@ -247,7 +287,7 @@ public final class NotificationService extends RotationLockService {
             orientationListener = null;
         }
         rotationHandler.removeCallbacks(applyRotationRunnable);
-        HdmiRotator.rotate(this, Surface.ROTATION_0);
+        HdmiRotator.rotate(this, Surface.ROTATION_0, getHdmiDisplayId());
 
         super.onDestroy();
     }
