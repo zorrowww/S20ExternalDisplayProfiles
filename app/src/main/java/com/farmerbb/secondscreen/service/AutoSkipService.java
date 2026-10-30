@@ -23,12 +23,15 @@ import android.content.SharedPreferences;
 import android.graphics.Path;
 import android.graphics.Rect;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 
 import com.farmerbb.secondscreen.util.U;
 
@@ -38,8 +41,14 @@ import java.util.List;
 public class AutoSkipService extends AccessibilityService {
     private static final String TAG = "AutoSkipService";
 
+    private final Handler mHandler = new Handler(Looper.getMainLooper());
     private static String sLastSkippedPackage = "";
     private static long sLastSkippedTime = 0;
+
+    private String mRetryingPackage = null;
+    private int mRetryCount = 0;
+    private static final int MAX_RETRIES = 6;
+    private static final long RETRY_INTERVAL_MS = 150;
 
     @Override
     public void onServiceConnected() {
@@ -63,59 +72,140 @@ public class AutoSkipService extends AccessibilityService {
         if (pkg.startsWith("com.farmerbb.secondscreen")
                 || pkg.equals("android")
                 || pkg.equals("com.android.systemui")
-                || pkg.equals("com.sec.android.app.launcher")) {
+                || pkg.equals("com.sec.android.app.launcher")
+                || pkg.equals("com.samsung.android.honeyboard")) {
             return;
         }
 
         long now = SystemClock.uptimeMillis();
-        if (pkg.equals(sLastSkippedPackage) && (now - sLastSkippedTime < 2500)) {
+        // If this package was confirmed skipped recently (within 3s), avoid duplicate work
+        if (pkg.equals(sLastSkippedPackage) && (now - sLastSkippedTime < 3000)) {
             return;
         }
 
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null) {
-            root = event.getSource();
+        processWindowsAndClick(pkg);
+    }
+
+    private void processWindowsAndClick(final String pkg) {
+        List<AccessibilityNodeInfo> roots = new ArrayList<>();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                List<AccessibilityWindowInfo> windows = getWindows();
+                if (windows != null) {
+                    for (AccessibilityWindowInfo window : windows) {
+                        AccessibilityNodeInfo r = window.getRoot();
+                        if (r != null) roots.add(r);
+                    }
+                }
+            } catch (Throwable ignored) {}
         }
-        if (root == null) return;
 
         try {
-            if (tryFindAndClickSkip(root, pkg)) {
-                sLastSkippedPackage = pkg;
-                sLastSkippedTime = now;
+            AccessibilityNodeInfo activeRoot = getRootInActiveWindow();
+            if (activeRoot != null && !roots.contains(activeRoot)) {
+                roots.add(activeRoot);
             }
-        } finally {
+        } catch (Throwable ignored) {}
+
+        boolean foundAndClicked = false;
+        for (AccessibilityNodeInfo root : roots) {
+            AccessibilityNodeInfo skipNode = findSkipNode(root);
+            if (skipNode != null) {
+                performSkipClick(skipNode);
+                try {
+                    skipNode.recycle();
+                } catch (Throwable ignored) {}
+                foundAndClicked = true;
+                break;
+            }
+        }
+
+        for (AccessibilityNodeInfo root : roots) {
             try {
                 root.recycle();
             } catch (Throwable ignored) {}
         }
+
+        if (foundAndClicked) {
+            scheduleRetry(pkg);
+        }
     }
 
-    private boolean tryFindAndClickSkip(AccessibilityNodeInfo node, String pkg) {
-        if (node == null) return false;
+    private void scheduleRetry(final String pkg) {
+        if (!pkg.equals(mRetryingPackage)) {
+            mRetryingPackage = pkg;
+            mRetryCount = 0;
+        }
+
+        if (mRetryCount >= MAX_RETRIES) {
+            mRetryingPackage = null;
+            mRetryCount = 0;
+            sLastSkippedPackage = pkg;
+            sLastSkippedTime = SystemClock.uptimeMillis();
+            return;
+        }
+
+        mHandler.removeCallbacksAndMessages(null);
+        mHandler.postDelayed(() -> {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root != null) {
+                try {
+                    AccessibilityNodeInfo skipNode = findSkipNode(root);
+                    if (skipNode != null) {
+                        mRetryCount++;
+                        Log.i(TAG, "Skip button still present in " + pkg + ", rapid retry #" + mRetryCount);
+                        performSkipClick(skipNode);
+                        try {
+                            skipNode.recycle();
+                        } catch (Throwable ignored) {}
+                        scheduleRetry(pkg);
+                    } else {
+                        Log.i(TAG, "Skip button gone in " + pkg + ", splash ad successfully dismissed!");
+                        mRetryingPackage = null;
+                        mRetryCount = 0;
+                        sLastSkippedPackage = pkg;
+                        sLastSkippedTime = SystemClock.uptimeMillis();
+                    }
+                } finally {
+                    try {
+                        root.recycle();
+                    } catch (Throwable ignored) {}
+                }
+            }
+        }, RETRY_INTERVAL_MS);
+    }
+
+    private AccessibilityNodeInfo findSkipNode(AccessibilityNodeInfo node) {
+        if (node == null) return null;
 
         if (isSkipNode(node)) {
-            if (performSkipClick(node)) {
-                Log.i(TAG, "Auto-skipped splash ad in: " + pkg);
-                return true;
-            }
+            return node;
         }
 
         int count = node.getChildCount();
         for (int i = 0; i < count; i++) {
             AccessibilityNodeInfo child = node.getChild(i);
             if (child != null) {
-                boolean clicked = tryFindAndClickSkip(child, pkg);
+                AccessibilityNodeInfo found = findSkipNode(child);
+                if (found != null) {
+                    if (found != child) {
+                        try {
+                            child.recycle();
+                        } catch (Throwable ignored) {}
+                    }
+                    return found;
+                }
                 try {
                     child.recycle();
                 } catch (Throwable ignored) {}
-                if (clicked) return true;
             }
         }
-
-        return false;
+        return null;
     }
 
     private boolean isSkipNode(AccessibilityNodeInfo node) {
+        if (node == null) return false;
         if (isSkipText(node.getText())) return true;
         if (isSkipText(node.getContentDescription())) return true;
         if (isSkipId(node.getViewIdResourceName())) return true;
@@ -129,10 +219,18 @@ public class AutoSkipService extends AccessibilityService {
         if (s.contains("不跳过") || s.contains("不能跳过")) return false;
 
         if (s.contains("跳过")) return true;
-        if (s.contains("关闭广告")) return true;
+        if (s.contains("关闭广告") || s.contains("跳过广告") || s.contains("点击跳过") || s.contains("点击关闭")) return true;
+        if (s.equals("关闭") || s.startsWith("关闭 ") || s.endsWith(" 关闭")) return true;
 
         String lower = s.toLowerCase();
         if (lower.equals("skip") || lower.startsWith("skip ") || lower.contains("skip ad") || lower.contains("skipad")) {
+            return true;
+        }
+        if (lower.equals("close") || lower.equals("close ad")) {
+            return true;
+        }
+
+        if (s.equals("×") || s.equals("✕") || s.equals("✖") || s.equals("╳")) {
             return true;
         }
 
@@ -152,7 +250,9 @@ public class AutoSkipService extends AccessibilityService {
                 || lower.contains("skip_tv")
                 || lower.contains("tv_skip")
                 || lower.contains("count_down")
-                || lower.contains("splash_ad_close");
+                || lower.contains("splash_close")
+                || lower.contains("splash_ad_close")
+                || lower.contains("btn_close_splash");
     }
 
     private boolean performSkipClick(AccessibilityNodeInfo target) {
@@ -161,44 +261,48 @@ public class AutoSkipService extends AccessibilityService {
         Rect bounds = new Rect();
         target.getBoundsInScreen(bounds);
 
-        // 1. Direct node action click
+        // 1. Accessibility ACTION_CLICK
+        boolean actionClicked = false;
         if (target.isClickable()) {
-            if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                return true;
-            }
+            actionClicked = target.performAction(AccessibilityNodeInfo.ACTION_CLICK);
         }
-
-        // 2. Parent clickable check
-        AccessibilityNodeInfo parent = target.getParent();
-        int depth = 0;
-        while (parent != null && depth < 4) {
-            if (parent.isClickable()) {
-                boolean clicked = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        if (!actionClicked) {
+            AccessibilityNodeInfo parent = target.getParent();
+            int depth = 0;
+            while (parent != null && depth < 4) {
+                if (parent.isClickable()) {
+                    actionClicked = parent.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    try {
+                        parent.recycle();
+                    } catch (Throwable ignored) {}
+                    break;
+                }
+                AccessibilityNodeInfo prev = parent;
+                parent = parent.getParent();
                 try {
-                    parent.recycle();
+                    prev.recycle();
                 } catch (Throwable ignored) {}
-                if (clicked) return true;
+                depth++;
             }
-            AccessibilityNodeInfo prev = parent;
-            parent = parent.getParent();
-            try {
-                prev.recycle();
-            } catch (Throwable ignored) {}
-            depth++;
         }
 
-        // 3. Gesture tap fallback (Android 7.0+)
+        // 2. Hardware gesture tap (dual-fire)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
                 && bounds.width() > 0 && bounds.height() > 0) {
+            dispatchTap(bounds.centerX(), bounds.centerY());
+        }
+
+        return true;
+    }
+
+    private void dispatchTap(int x, int y) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             Path path = new Path();
-            path.moveTo(bounds.centerX(), bounds.centerY());
+            path.moveTo(x, y);
             GestureDescription.StrokeDescription stroke =
                     new GestureDescription.StrokeDescription(path, 0, 50);
             dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(), null, null);
-            return true;
         }
-
-        return false;
     }
 
     @Override
