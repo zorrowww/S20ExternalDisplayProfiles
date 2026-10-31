@@ -297,12 +297,12 @@ public final class ProfileLoadService extends SecondScreenIntentService {
             if(prefCurrent.getBoolean("not_active", true)) {
                 su[freeformCommand] = U.freeformCommand(true);
                 if(!U.hasFreeformSupport(this))
-                    rebootRequired = true;
+                    rebootRequired = false;
             } else {
                 if(!prefCurrent.getBoolean("freeform", false)) {
                     su[freeformCommand] = U.freeformCommand(true);
                     if(!U.hasFreeformSupport(this))
-                        rebootRequired = true;
+                        rebootRequired = false;
                 }
             }
         } else {
@@ -311,7 +311,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
                     boolean freeformSystem = prefCurrent.getBoolean("freeform_system", false);
                     su[freeformCommand] = U.freeformCommand(freeformSystem);
                     if(U.hasFreeformSupport(this) != freeformSystem)
-                        rebootRequired = true;
+                        rebootRequired = false;
                 }
         }
 
@@ -368,10 +368,7 @@ public final class ProfileLoadService extends SecondScreenIntentService {
             }
         }
 
-        if(!rebootRequired) {
-            rebootRequired = uiRefresh.contains("activity-manager")
-                    && (shouldRunSizeCommand || shouldRunDensityCommand);
-        }
+        rebootRequired = false;
 
         // Overscan
         if(U.canEnableOverscan()) {

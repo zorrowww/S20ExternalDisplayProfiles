@@ -662,13 +662,7 @@ public final class U {
         CommandDispatcher.getInstance().dispatch(context);
 
         if(!runAsRoot && rebootRequired) {
-            SharedPreferences prefCurrent = getPrefCurrent(context);
-            if(!prefCurrent.getBoolean("not_active", true))
-                prefCurrent.edit().putBoolean("reboot_required", true).apply();
-
-            Intent intent = new Intent(context, RebootRequiredActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(intent);
+            // Disabled: never launch RebootRequiredActivity
         }
     }
 

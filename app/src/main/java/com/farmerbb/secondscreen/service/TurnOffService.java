@@ -126,7 +126,9 @@ public final class TurnOffService extends SecondScreenIntentService {
         final int fontScaleCommand = 26;
         final int fontSizeCommand = 27;
         final int dockAudioCommand = 28;
-        final int total = 29;
+        final int displaySizeForcedCommand = 29;
+        final int displayDensityForcedCommand = 30;
+        final int total = 31;
 
         // Initialize su array
         String[] su = new String[total];
@@ -213,79 +215,61 @@ public final class TurnOffService extends SecondScreenIntentService {
         rebootRequired = false;
         String uiRefresh = prefCurrent.getString("ui_refresh", "do-nothing");
 
-        String origSize = prefCurrent.getString("original_size", "reset");
-        String origDensity = prefCurrent.getString("original_density", "reset");
         String origDisplaySizeForced = prefCurrent.getString("original_display_size_forced", null);
         String origDisplayDensityForced = prefCurrent.getString("original_display_density_forced", null);
 
-        if(origDisplaySizeForced != null) {
-            try {
-                Settings.Global.putString(getContentResolver(), "display_size_forced", origDisplaySizeForced);
-            } catch (Exception ignored) {}
-        }
-        if(origDisplayDensityForced != null) {
-            try {
-                Settings.Secure.putString(getContentResolver(), "display_density_forced", origDisplayDensityForced);
-            } catch (Exception ignored) {}
-        }
-
-        boolean shouldRunSizeCommand = U.runSizeCommand(this, origSize);
-        boolean shouldRunDensityCommand = U.runDensityCommand(this, origDensity);
-
-        boolean runSizeCommand = uiRefresh.contains("activity-manager") || shouldRunSizeCommand;
-        boolean runDensityCommand = uiRefresh.contains("activity-manager") || shouldRunDensityCommand;
-
-        if(runSizeCommand) {
-            if(uiRefresh.equals("activity-manager")
-                    || uiRefresh.equals("activity-manager-safe-mode")
-                    || cmWorkaround)
-                // Run a different command if we are restarting the ActivityManager
-                su[sizeCommand] = U.safeModeSizeCommand("null".equals(origSize) || "reset".equals(origSize) ? "null" : origSize.replace('x', ','));
+        String origSize = prefCurrent.getString("original_size", null);
+        if(origSize == null || "reset".equals(origSize) || "null".equals(origSize)) {
+            if(origDisplaySizeForced != null && origDisplaySizeForced.contains(","))
+                origSize = origDisplaySizeForced.replace(',', 'x');
             else
-                su[sizeCommand] = U.sizeCommand(this, origSize);
+                origSize = "1080x2400";
         }
 
-        if(runDensityCommand) {
-            if((uiRefresh.equals("activity-manager")
-                    || uiRefresh.equals("activity-manager-safe-mode"))
-                    && !cmWorkaround)
-                // Run a different command if we are restarting the ActivityManager
-                su[densityCommand] = U.safeModeDensityCommand("null".equals(origDensity) || "reset".equals(origDensity) ? "null" : origDensity);
-            else {
-                su[densityCommand] = U.densityCommand(this, origDensity);
-
-                // We run the density command twice, for reliability
-                su[densityCommand2] = su[densityCommand];
-            }
+        String origDensity = prefCurrent.getString("original_density", null);
+        if(origDensity == null || "reset".equals(origDensity) || "null".equals(origDensity)) {
+            if(origDisplayDensityForced != null && !origDisplayDensityForced.isEmpty() && !"null".equals(origDisplayDensityForced))
+                origDensity = origDisplayDensityForced;
+            else
+                origDensity = "480";
         }
+
+        try {
+            Settings.Global.putString(getContentResolver(), "display_size_forced", origSize.replace('x', ','));
+        } catch (Exception ignored) {}
+
+        try {
+            Settings.Secure.putString(getContentResolver(), "display_density_forced", origDensity);
+        } catch (Exception ignored) {}
+
+        su[sizeCommand] = "wm size " + origSize;
+        su[densityCommand] = "wm density " + origDensity;
+        su[densityCommand2] = "wm density " + origDensity;
 
         // Restore camera cutout policy for 3rd party apps back to default (0)
         su[cutoutPolicyCommand] = "for pkg in $(pm list packages -3 | cut -d: -f2); do service call activity_task 121 i32 0 s16 \"$pkg\" i32 0 >/dev/null 2>&1; done";
 
         // Restore font scale and Samsung font size
         float origFontScale = prefCurrent.getFloat("original_font_scale", 1.0f);
+        if(origFontScale <= 0.0f) origFontScale = 1.0f;
         try {
             Settings.System.putFloat(getContentResolver(), Settings.System.FONT_SCALE, origFontScale);
         } catch (Exception ignored) {}
 
-        int origFontSize = prefCurrent.getInt("original_font_size", -1);
-        if(origFontSize != -1) {
-            try {
-                Settings.Global.putInt(getContentResolver(), "font_size", origFontSize);
-            } catch (Exception ignored) {}
-        }
+        int origFontSize = prefCurrent.getInt("original_font_size", 2);
+        if(origFontSize <= 0) origFontSize = 2;
+        try {
+            Settings.Global.putInt(getContentResolver(), "font_size", origFontSize);
+        } catch (Exception ignored) {}
 
         // Individual atomic commands without ';' or '&&'
         su[fontScaleCommand] = "settings put system font_scale " + origFontScale;
-        if(origFontSize != -1) {
-            su[fontSizeCommand] = "settings put global font_size " + origFontSize;
-        }
+        su[fontSizeCommand] = "settings put global font_size " + origFontSize;
         su[dockAudioCommand] = "settings put global dock_audio_media_enabled 1";
+        su[displaySizeForcedCommand] = "settings put global display_size_forced " + origSize.replace('x', ',');
+        su[displayDensityForcedCommand] = "settings put secure display_density_forced " + origDensity;
 
-        if(!rebootRequired) {
-            rebootRequired = uiRefresh.contains("activity-manager")
-                    && (shouldRunSizeCommand || shouldRunDensityCommand);
-        }
+        rebootRequired = false;
 
         // Overscan
         if(U.canEnableOverscan() && prefCurrent.getBoolean("overscan", true))
