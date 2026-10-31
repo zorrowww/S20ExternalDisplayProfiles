@@ -31,7 +31,9 @@ import android.os.Build;
 import android.os.Handler;
 import android.provider.Settings;
 import android.provider.Settings.SettingNotFoundException;
+import android.util.DisplayMetrics;
 import android.view.Display;
+import android.view.WindowManager;
 import android.view.Surface;
 import android.widget.Toast;
 
