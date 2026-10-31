@@ -49,10 +49,17 @@ public class AudioRoutingHelper {
                 // 1. In-process execution (app level)
                 applyInProcess(context, forceSpeaker);
 
-                // 2. Root execution via app_process (UID 0 root, bypasses MODIFY_AUDIO_ROUTING permission)
+                // 2. Global dock audio setting
+                try {
+                    android.provider.Settings.Global.putInt(
+                            context.getContentResolver(), "dock_audio_media_enabled", forceSpeaker ? 0 : 1);
+                } catch (Throwable ignored) {}
+
+                // 3. Root execution via app_process (UID 0 root, bypasses MODIFY_AUDIO_ROUTING permission)
                 if (U.hasElevatedPermissions(context, false)) {
                     String apkPath = context.getPackageCodePath();
-                    String cmd = "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin " 
+                    String cmd = "settings put global dock_audio_media_enabled " + (forceSpeaker ? "0" : "1") + "; "
+                            + "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin " 
                             + AudioRoutingHelper.class.getName() + " " + forceSpeaker;
                     U.runCommand(context, cmd);
                 }
@@ -89,6 +96,11 @@ public class AudioRoutingHelper {
             AudioManager am = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
             if (am == null) return;
 
+            // Standard Android speakerphone
+            try {
+                am.setSpeakerphoneOn(forceSpeaker);
+            } catch (Throwable ignored) {}
+
             // Samsung One UI proprietary method: AudioManager.setForceSpeakerOn(boolean)
             try {
                 Method m = am.getClass().getMethod("setForceSpeakerOn", boolean.class);
@@ -96,12 +108,17 @@ public class AudioRoutingHelper {
                 Log.i(TAG, "In-process setForceSpeakerOn(" + forceSpeaker + ") succeeded");
             } catch (Throwable ignored) {}
 
-            // Android AudioSystem.setForceUse
+            // Android AudioSystem.setForceUse and setParameters
             try {
                 Class<?> asCls = Class.forName("android.media.AudioSystem");
-                Method m = asCls.getMethod("setForceUse", int.class, int.class);
-                m.invoke(null, 1, forceSpeaker ? 1 : 0);
-                Log.i(TAG, "In-process AudioSystem.setForceUse(1, " + (forceSpeaker ? 1 : 0) + ") succeeded");
+                Method setForceUse = asCls.getMethod("setForceUse", int.class, int.class);
+                setForceUse.invoke(null, 1, forceSpeaker ? 1 : 0); // FOR_MEDIA
+                setForceUse.invoke(null, 3, 0); // FOR_DOCK -> FORCE_NONE
+
+                Method setParameters = asCls.getMethod("setParameters", String.class);
+                if (forceSpeaker) {
+                    setParameters.invoke(null, "routing=2");
+                }
             } catch (Throwable ignored) {}
 
             // Android 12+ Communication device
@@ -135,11 +152,38 @@ public class AudioRoutingHelper {
         System.out.println("AudioRoutingHelper [UID 0]: forceSpeaker=" + forceSpeaker);
 
         try {
+            if (Looper.myLooper() == null) {
+                Looper.prepareMainLooper();
+            }
+
+            // 1. AudioSystem static operations (UID 0 root direct kernel/HAL call, no Context required)
+            try {
+                Class<?> asCls = Class.forName("android.media.AudioSystem");
+                Method setForceUse = asCls.getMethod("setForceUse", int.class, int.class);
+                setForceUse.invoke(null, 1, forceSpeaker ? 1 : 0); // FOR_MEDIA -> FORCE_SPEAKER
+                setForceUse.invoke(null, 3, 0); // FOR_DOCK -> FORCE_NONE
+                System.out.println("Invoked AudioSystem.setForceUse FOR_MEDIA=" + (forceSpeaker ? 1 : 0) + ", FOR_DOCK=0");
+
+                Method setParameters = asCls.getMethod("setParameters", String.class);
+                if (forceSpeaker) {
+                    setParameters.invoke(null, "routing=2");
+                    System.out.println("Invoked AudioSystem.setParameters('routing=2')");
+                }
+            } catch (Throwable t) {
+                System.err.println("AudioSystem static error: " + t.getMessage());
+            }
+
             Class<?> atCls = Class.forName("android.app.ActivityThread");
             Object at = atCls.getMethod("systemMain").invoke(null);
             Context ctx = (Context) atCls.getMethod("getSystemContext").invoke(at);
 
-            // 1. DeX settings override
+            // Global dock audio setting
+            try {
+                android.provider.Settings.Global.putInt(
+                        ctx.getContentResolver(), "dock_audio_media_enabled", forceSpeaker ? 0 : 1);
+            } catch (Throwable ignored) {}
+
+            // 2. DeX settings override
             try {
                 Bundle b1 = new Bundle();
                 b1.putString("key", "hdmi_auto_enter");
@@ -164,9 +208,13 @@ public class AudioRoutingHelper {
                 System.err.println("DeX override error: " + t.getMessage());
             }
 
-            // 2. AudioManager & AudioSystem operations with root privileges
+            // 3. AudioManager operations with root privileges
             AudioManager am = (AudioManager) ctx.getSystemService(Context.AUDIO_SERVICE);
             if (am != null) {
+                try {
+                    am.setSpeakerphoneOn(forceSpeaker);
+                } catch (Throwable ignored) {}
+
                 // Samsung setForceSpeakerOn
                 try {
                     Method m = am.getClass().getMethod("setForceSpeakerOn", boolean.class);
@@ -174,16 +222,6 @@ public class AudioRoutingHelper {
                     System.out.println("Invoked AudioManager.setForceSpeakerOn(" + forceSpeaker + ")");
                 } catch (Throwable t) {
                     System.err.println("setForceSpeakerOn error: " + t.getMessage());
-                }
-
-                // AudioSystem setForceUse
-                try {
-                    Class<?> asCls = Class.forName("android.media.AudioSystem");
-                    Method m = asCls.getMethod("setForceUse", int.class, int.class);
-                    m.invoke(null, 1, forceSpeaker ? 1 : 0);
-                    System.out.println("Invoked AudioSystem.setForceUse(1, " + (forceSpeaker ? 1 : 0) + ")");
-                } catch (Throwable t) {
-                    System.err.println("setForceUse error: " + t.getMessage());
                 }
 
                 // AudioProductStrategy preferred device (Root UID 0 bypasses MODIFY_AUDIO_ROUTING check)

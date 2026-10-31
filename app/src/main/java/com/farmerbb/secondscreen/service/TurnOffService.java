@@ -122,7 +122,9 @@ public final class TurnOffService extends SecondScreenIntentService {
         final int setHomeActivityCommand = 22;
         final int sehomeCommand = 23;
         final int userRotationModeCommand = 24;
-        final int total = 25;
+        final int cutoutPolicyCommand = 25;
+        final int fontScaleCommand = 26;
+        final int total = 27;
 
         // Initialize su array
         String[] su = new String[total];
@@ -209,8 +211,24 @@ public final class TurnOffService extends SecondScreenIntentService {
                 ? "activity-manager"
                 : prefCurrent.getString("ui_refresh", "do-nothing");
 
-        boolean shouldRunSizeCommand = U.runSizeCommand(this, "reset");
-        boolean shouldRunDensityCommand = U.runDensityCommand(this, "reset");
+        String origSize = prefCurrent.getString("original_size", "reset");
+        String origDensity = prefCurrent.getString("original_density", "reset");
+        String origDisplaySizeForced = prefCurrent.getString("original_display_size_forced", null);
+        String origDisplayDensityForced = prefCurrent.getString("original_display_density_forced", null);
+
+        if(origDisplaySizeForced != null) {
+            try {
+                Settings.Global.putString(getContentResolver(), "display_size_forced", origDisplaySizeForced);
+            } catch (Exception ignored) {}
+        }
+        if(origDisplayDensityForced != null) {
+            try {
+                Settings.Secure.putString(getContentResolver(), "display_density_forced", origDisplayDensityForced);
+            } catch (Exception ignored) {}
+        }
+
+        boolean shouldRunSizeCommand = U.runSizeCommand(this, origSize);
+        boolean shouldRunDensityCommand = U.runDensityCommand(this, origDensity);
 
         boolean runSizeCommand = uiRefresh.contains("activity-manager") || shouldRunSizeCommand;
         boolean runDensityCommand = uiRefresh.contains("activity-manager") || shouldRunDensityCommand;
@@ -220,9 +238,9 @@ public final class TurnOffService extends SecondScreenIntentService {
                     || uiRefresh.equals("activity-manager-safe-mode")
                     || cmWorkaround)
                 // Run a different command if we are restarting the ActivityManager
-                su[sizeCommand] = U.safeModeSizeCommand("null");
+                su[sizeCommand] = U.safeModeSizeCommand("null".equals(origSize) || "reset".equals(origSize) ? "null" : origSize.replace('x', ','));
             else
-                su[sizeCommand] = U.sizeCommand(this, "reset");
+                su[sizeCommand] = U.sizeCommand(this, origSize);
         }
 
         if(runDensityCommand) {
@@ -230,14 +248,33 @@ public final class TurnOffService extends SecondScreenIntentService {
                     || uiRefresh.equals("activity-manager-safe-mode"))
                     && !cmWorkaround)
                 // Run a different command if we are restarting the ActivityManager
-                su[densityCommand] = U.safeModeDensityCommand("null");
+                su[densityCommand] = U.safeModeDensityCommand("null".equals(origDensity) || "reset".equals(origDensity) ? "null" : origDensity);
             else {
-                su[densityCommand] = U.densityCommand(this, "reset");
+                su[densityCommand] = U.densityCommand(this, origDensity);
 
                 // We run the density command twice, for reliability
                 su[densityCommand2] = su[densityCommand];
             }
         }
+
+        // Restore camera cutout policy for 3rd party apps back to default (0)
+        su[cutoutPolicyCommand] = "for pkg in $(pm list packages -3 | cut -d: -f2); do service call activity_task 121 i32 0 s16 \"$pkg\" i32 0 >/dev/null 2>&1; done";
+
+        // Restore font scale and Samsung font size
+        float origFontScale = prefCurrent.getFloat("original_font_scale", 1.0f);
+        try {
+            Settings.System.putFloat(getContentResolver(), Settings.System.FONT_SCALE, origFontScale);
+        } catch (Exception ignored) {}
+
+        int origFontSize = prefCurrent.getInt("original_font_size", -1);
+        if(origFontSize != -1) {
+            try {
+                Settings.Global.putInt(getContentResolver(), "font_size", origFontSize);
+            } catch (Exception ignored) {}
+        }
+
+        su[fontScaleCommand] = "settings put system font_scale " + origFontScale
+                + (origFontSize != -1 ? "; settings put global font_size " + origFontSize : "");
 
         if(!rebootRequired) {
             rebootRequired = uiRefresh.contains("activity-manager")
@@ -403,6 +440,8 @@ public final class TurnOffService extends SecondScreenIntentService {
                             su[setHomeActivityCommand],
                             su[sehomeCommand],
                             su[userRotationModeCommand],
+                            su[cutoutPolicyCommand],
+                            su[fontScaleCommand],
                             su[uiRefreshCommand]};
                 } else
                     su = new String[]{
@@ -422,6 +461,8 @@ public final class TurnOffService extends SecondScreenIntentService {
                             su[setHomeActivityCommand],
                             su[sehomeCommand],
                             su[userRotationModeCommand],
+                            su[cutoutPolicyCommand],
+                            su[fontScaleCommand],
                             su[uiRefreshCommand]};
                 break;
         }

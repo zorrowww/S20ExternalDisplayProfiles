@@ -442,6 +442,47 @@ public final class ProfileLoadService extends SecondScreenIntentService {
 
                 int sehome = Settings.Global.getInt(getContentResolver(), "sehome_portrait_mode_only", -1);
                 editor.putInt("sehome_portrait_mode_only", sehome);
+
+                // Save original font scale and Samsung font size
+                try {
+                    float fontScale = Settings.System.getFloat(getContentResolver(), Settings.System.FONT_SCALE, 1.0f);
+                    editor.putFloat("original_font_scale", fontScale);
+                } catch (Exception ignored) {}
+
+                try {
+                    int fontSize = Settings.Global.getInt(getContentResolver(), "font_size", -1);
+                    if(fontSize != -1) editor.putInt("original_font_size", fontSize);
+                } catch (Exception ignored) {}
+
+                // Save original forced display settings
+                try {
+                    String dispSize = Settings.Global.getString(getContentResolver(), "display_size_forced");
+                    if(dispSize != null) editor.putString("original_display_size_forced", dispSize);
+                    String dispDensity = Settings.Secure.getString(getContentResolver(), "display_density_forced");
+                    if(dispDensity != null) editor.putString("original_display_density_forced", dispDensity);
+                } catch (Exception ignored) {}
+
+                // Save original screen size and density
+                try {
+                    DisplayMetrics origMetrics = new DisplayMetrics();
+                    WindowManager origWm = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
+                    if(origWm != null && origWm.getDefaultDisplay() != null) {
+                        origWm.getDefaultDisplay().getRealMetrics(origMetrics);
+                        String forcedSize = Settings.Global.getString(getContentResolver(), "display_size_forced");
+                        if(forcedSize != null && forcedSize.contains(",")) {
+                            editor.putString("original_size", forcedSize.replace(',', 'x'));
+                        } else {
+                            editor.putString("original_size", origMetrics.widthPixels + "x" + origMetrics.heightPixels);
+                        }
+
+                        String forcedDensity = Settings.Secure.getString(getContentResolver(), "display_density_forced");
+                        if(forcedDensity != null && !forcedDensity.isEmpty()) {
+                            editor.putString("original_density", forcedDensity);
+                        } else {
+                            editor.putString("original_density", Integer.toString(origMetrics.densityDpi));
+                        }
+                    }
+                } catch (Exception ignored) {}
             }
         } catch (SettingNotFoundException e) { /* Gracefully fail */ }
 
