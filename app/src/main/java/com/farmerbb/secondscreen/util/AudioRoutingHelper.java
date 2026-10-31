@@ -281,8 +281,10 @@ public class AudioRoutingHelper {
             }
 
             System.out.println("AudioRoutingHelper finished successfully.");
+            System.exit(0);
         } catch (Throwable t) {
             t.printStackTrace();
+            System.exit(1);
         }
     }
 
