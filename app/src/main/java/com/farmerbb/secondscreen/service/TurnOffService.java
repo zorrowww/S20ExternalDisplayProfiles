@@ -98,37 +98,38 @@ public final class TurnOffService extends SecondScreenIntentService {
 
         // Commands will be run in this order (except if "Restart ActivityManager" is selected)
         final int wifiCommand = 0;
-        final int densityCommand = 1;
-        final int densityCommand2 = 2;
-        final int sizeCommand = 3;
-        final int overscanCommand = 4;
-        final int rotationPreCommand = 5;
-        final int rotationCommand = 6;
-        final int rotationPostCommand = 7;
-        final int chromeCommand = 8;
-        final int chromeCommand2 = 9;
-        final int immersiveCommand = 10;
-        final int freeformCommand = 11;
-        final int hdmiRotationCommand = 12;
-        final int navbarCommand = 13;
-        final int daydreamsCommand = 14;
-        final int daydreamsChargingCommand = 15;
-        final int stayOnCommand = 16;
-        final int showTouchesCommand = 17;
-        final int uiRefreshCommand = 18;
-        final int uiRefreshCommand2 = 19;
-        final int vibrationCommand = 20;
-        final int backlightCommand = 21;
-        final int setHomeActivityCommand = 22;
-        final int sehomeCommand = 23;
-        final int userRotationModeCommand = 24;
-        final int cutoutPolicyCommand = 25;
-        final int fontScaleCommand = 26;
-        final int fontSizeCommand = 27;
-        final int dockAudioCommand = 28;
-        final int displaySizeForcedCommand = 29;
-        final int displayDensityForcedCommand = 30;
-        final int total = 31;
+        final int displaySizeForcedCommand = 1;
+        final int displayDensityForcedCommand = 2;
+        final int fontScaleCommand = 3;
+        final int fontSizeCommand = 4;
+        final int dockAudioCommand = 5;
+        final int sizeCommand = 6;
+        final int densityNudgeCommand = 7;
+        final int densityCommand = 8;
+        final int densityCommand2 = 9;
+        final int overscanCommand = 10;
+        final int rotationPreCommand = 11;
+        final int rotationCommand = 12;
+        final int rotationPostCommand = 13;
+        final int chromeCommand = 14;
+        final int chromeCommand2 = 15;
+        final int immersiveCommand = 16;
+        final int freeformCommand = 17;
+        final int hdmiRotationCommand = 18;
+        final int navbarCommand = 19;
+        final int daydreamsCommand = 20;
+        final int daydreamsChargingCommand = 21;
+        final int stayOnCommand = 22;
+        final int showTouchesCommand = 23;
+        final int uiRefreshCommand = 24;
+        final int uiRefreshCommand2 = 25;
+        final int vibrationCommand = 26;
+        final int backlightCommand = 27;
+        final int setHomeActivityCommand = 28;
+        final int sehomeCommand = 29;
+        final int userRotationModeCommand = 30;
+        final int cutoutPolicyCommand = 31;
+        final int total = 32;
 
         // Initialize su array
         String[] su = new String[total];
@@ -242,13 +243,6 @@ public final class TurnOffService extends SecondScreenIntentService {
             Settings.Secure.putString(getContentResolver(), "display_density_forced", origDensity);
         } catch (Exception ignored) {}
 
-        su[sizeCommand] = "wm size " + origSize;
-        su[densityCommand] = "wm density " + origDensity;
-        su[densityCommand2] = "wm density " + origDensity;
-
-        // Restore camera cutout policy for 3rd party apps back to default (0)
-        su[cutoutPolicyCommand] = "for pkg in $(pm list packages -3 | cut -d: -f2); do service call activity_task 121 i32 0 s16 \"$pkg\" i32 0 >/dev/null 2>&1; done";
-
         // Restore font scale and Samsung font size
         float origFontScale = prefCurrent.getFloat("original_font_scale", 1.0f);
         if(origFontScale <= 0.0f) origFontScale = 1.0f;
@@ -262,12 +256,27 @@ public final class TurnOffService extends SecondScreenIntentService {
             Settings.Global.putInt(getContentResolver(), "font_size", origFontSize);
         } catch (Exception ignored) {}
 
+        // Calculate density nudge for Samsung SystemUI IndicatorGarden/ScaleGardener
+        int parsedDensity = 480;
+        try {
+            parsedDensity = Integer.parseInt(origDensity);
+        } catch (Exception ignored) {}
+        int nudgeDensity = (parsedDensity > 500) ? (parsedDensity - 1) : (parsedDensity + 1);
+
         // Individual atomic commands without ';' or '&&'
+        su[displaySizeForcedCommand] = "settings put global display_size_forced " + origSize.replace('x', ',');
+        su[displayDensityForcedCommand] = "settings put secure display_density_forced " + origDensity;
         su[fontScaleCommand] = "settings put system font_scale " + origFontScale;
         su[fontSizeCommand] = "settings put global font_size " + origFontSize;
         su[dockAudioCommand] = "settings put global dock_audio_media_enabled 1";
-        su[displaySizeForcedCommand] = "settings put global display_size_forced " + origSize.replace('x', ',');
-        su[displayDensityForcedCommand] = "settings put secure display_density_forced " + origDensity;
+
+        su[sizeCommand] = "wm size " + origSize;
+        su[densityNudgeCommand] = "wm density " + nudgeDensity;
+        su[densityCommand] = "wm density " + origDensity;
+        su[densityCommand2] = "wm density " + origDensity;
+
+        // Restore camera cutout policy for 3rd party apps back to default (0)
+        su[cutoutPolicyCommand] = "for pkg in $(pm list packages -3 | cut -d: -f2); do service call activity_task 121 i32 0 s16 \"$pkg\" i32 0 >/dev/null 2>&1; done";
 
         rebootRequired = false;
 
@@ -437,8 +446,14 @@ public final class TurnOffService extends SecondScreenIntentService {
                             su[uiRefreshCommand]};
                 } else
                     su = new String[]{
-                            su[densityCommand],
+                            su[displaySizeForcedCommand],
+                            su[displayDensityForcedCommand],
+                            su[fontScaleCommand],
+                            su[fontSizeCommand],
+                            su[dockAudioCommand],
                             su[sizeCommand],
+                            su[densityNudgeCommand],
+                            su[densityCommand],
                             su[overscanCommand],
                             su[chromeCommand],
                             su[chromeCommand2],
@@ -454,9 +469,6 @@ public final class TurnOffService extends SecondScreenIntentService {
                             su[sehomeCommand],
                             su[userRotationModeCommand],
                             su[cutoutPolicyCommand],
-                            su[fontScaleCommand],
-                            su[fontSizeCommand],
-                            su[dockAudioCommand],
                             su[uiRefreshCommand]};
                 break;
         }
