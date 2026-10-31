@@ -93,7 +93,7 @@ public final class BootService extends SecondScreenIntentService {
             // Set backlight command
             for(File backlightOff : U.backlightOff) {
                 if(backlightOff.exists()) {
-                    su[backlightCommand] = "sleep 2 && echo 0 > " + backlightOff.getAbsolutePath();
+                    su[backlightCommand] = "echo 0 > " + backlightOff.getAbsolutePath();
                     break;
                 }
             }

@@ -124,7 +124,9 @@ public final class TurnOffService extends SecondScreenIntentService {
         final int userRotationModeCommand = 24;
         final int cutoutPolicyCommand = 25;
         final int fontScaleCommand = 26;
-        final int total = 27;
+        final int fontSizeCommand = 27;
+        final int dockAudioCommand = 28;
+        final int total = 29;
 
         // Initialize su array
         String[] su = new String[total];
@@ -207,9 +209,9 @@ public final class TurnOffService extends SecondScreenIntentService {
         boolean cmWorkaround = getPackageManager().hasSystemFeature("com.cyanogenmod.android")
                 && Build.VERSION.SDK_INT == Build.VERSION_CODES.LOLLIPOP_MR1;
 
-        String uiRefresh = (cmWorkaround || rebootRequired)
-                ? "activity-manager"
-                : prefCurrent.getString("ui_refresh", "do-nothing");
+        // Modern Android dynamically reconfigures without restart; never force activity-manager or violent reboot
+        rebootRequired = false;
+        String uiRefresh = prefCurrent.getString("ui_refresh", "do-nothing");
 
         String origSize = prefCurrent.getString("original_size", "reset");
         String origDensity = prefCurrent.getString("original_density", "reset");
@@ -273,8 +275,12 @@ public final class TurnOffService extends SecondScreenIntentService {
             } catch (Exception ignored) {}
         }
 
-        su[fontScaleCommand] = "settings put system font_scale " + origFontScale
-                + (origFontSize != -1 ? "; settings put global font_size " + origFontSize : "");
+        // Individual atomic commands without ';' or '&&'
+        su[fontScaleCommand] = "settings put system font_scale " + origFontScale;
+        if(origFontSize != -1) {
+            su[fontSizeCommand] = "settings put global font_size " + origFontSize;
+        }
+        su[dockAudioCommand] = "settings put global dock_audio_media_enabled 1";
 
         if(!rebootRequired) {
             rebootRequired = uiRefresh.contains("activity-manager")
@@ -442,6 +448,8 @@ public final class TurnOffService extends SecondScreenIntentService {
                             su[userRotationModeCommand],
                             su[cutoutPolicyCommand],
                             su[fontScaleCommand],
+                            su[fontSizeCommand],
+                            su[dockAudioCommand],
                             su[uiRefreshCommand]};
                 } else
                     su = new String[]{
@@ -463,6 +471,8 @@ public final class TurnOffService extends SecondScreenIntentService {
                             su[userRotationModeCommand],
                             su[cutoutPolicyCommand],
                             su[fontScaleCommand],
+                            su[fontSizeCommand],
+                            su[dockAudioCommand],
                             su[uiRefreshCommand]};
                 break;
         }

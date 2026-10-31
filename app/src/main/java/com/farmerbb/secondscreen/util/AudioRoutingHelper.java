@@ -58,10 +58,10 @@ public class AudioRoutingHelper {
                 // 3. Root execution via app_process (UID 0 root, bypasses MODIFY_AUDIO_ROUTING permission)
                 if (U.hasElevatedPermissions(context, false)) {
                     String apkPath = context.getPackageCodePath();
-                    String cmd = "settings put global dock_audio_media_enabled " + (forceSpeaker ? "0" : "1") + "; "
-                            + "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin " 
-                            + AudioRoutingHelper.class.getName() + " " + forceSpeaker;
-                    U.runCommand(context, cmd);
+                    // Execute each command separately to avoid shell && or ; parser drops
+                    U.runCommand(context, "settings put global dock_audio_media_enabled " + (forceSpeaker ? "0" : "1"));
+                    U.runCommand(context, "CLASSPATH=" + apkPath + " /system/bin/app_process /system/bin " 
+                            + AudioRoutingHelper.class.getName() + " " + forceSpeaker);
                 }
             } catch (Throwable t) {
                 Log.e(TAG, "Failed to apply audio routing", t);

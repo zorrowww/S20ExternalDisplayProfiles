@@ -308,7 +308,7 @@ public final class U {
 
                 return "sleep 1 && kill " + processid;
             } else
-                return "sleep 1 && am restart";
+                return "am restart";
         } else {
             // Get SystemUI pid
             for(ActivityManager.RunningAppProcessInfo process : pids) {
@@ -322,9 +322,9 @@ public final class U {
             // instead, and hope that the user has that command available on their device.
             // Starting with 7.0, pkill doesn't work, so use "kill" and "pidof" instead.
             if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
-                return "sleep 2 && kill `pidof com.android.systemui`";
+                return "kill `pidof com.android.systemui`";
             else if(processid == 0)
-                return "sleep 2 && pkill com.android.systemui";
+                return "pkill com.android.systemui";
             else
                 return "sleep 2 && kill " + processid;
         }
@@ -360,7 +360,7 @@ public final class U {
                 || launcherPackageName.equals("android"))
             return "sleep 1";
         else
-            return "sleep 1 && am force-stop " + launcherPackageName;
+            return "am force-stop " + launcherPackageName;
     }
 
     // Runs checks to determine if size or density commands need to be run.
